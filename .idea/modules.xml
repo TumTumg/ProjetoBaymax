@@ -2,7 +2,11 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+<<<<<<< HEAD
       <module fileurl="file://$PROJECT_DIR$/.idea/Baymax.iml" filepath="$PROJECT_DIR$/.idea/Baymax.iml" />
+=======
+      <module fileurl="file://$PROJECT_DIR$/.idea/ProjetoBaymax.iml" filepath="$PROJECT_DIR$/.idea/ProjetoBaymax.iml" />
+>>>>>>> edf2c5d3a880822d8aaba4c5e466bf490b36843d
     </modules>
   </component>
 </project>
