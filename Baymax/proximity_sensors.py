@@ -1,9 +1,10 @@
-# proximity_sensors.py
+import RPi.GPIO as GPIO
 
 class ProximitySensors:
     def __init__(self, pin):
         self.pin = pin
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.pin, GPIO.IN)
 
     def is_visitor_near(self):
-        # Implementação simulada
-        return True  # Sempre retorna que há um visitante para fins de teste
+        return GPIO.input(self.pin) == GPIO.HIGH

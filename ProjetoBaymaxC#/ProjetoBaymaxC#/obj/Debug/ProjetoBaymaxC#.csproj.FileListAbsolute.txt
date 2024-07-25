@@ -1,0 +1,5 @@
+C:\Users\decau\PycharmProjects\ProjetoBaymax\ProjetoBaymaxC#\ProjetoBaymaxC#\obj\Debug\ProjetoBaymaxC#.csproj.AssemblyReference.cache
+C:\Users\decau\PycharmProjects\ProjetoBaymax\ProjetoBaymaxC#\ProjetoBaymaxC#\obj\Debug\Form1.resources
+C:\Users\decau\PycharmProjects\ProjetoBaymax\ProjetoBaymaxC#\ProjetoBaymaxC#\obj\Debug\ProjetoBaymaxC_.Properties.Resources.resources
+C:\Users\decau\PycharmProjects\ProjetoBaymax\ProjetoBaymaxC#\ProjetoBaymaxC#\obj\Debug\ProjetoBaymaxC#.csproj.GenerateResource.cache
+C:\Users\decau\PycharmProjects\ProjetoBaymax\ProjetoBaymaxC#\ProjetoBaymaxC#\obj\Debug\ProjetoBaymaxC#.csproj.CoreCompileInputs.cache
