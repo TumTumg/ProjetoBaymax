@@ -1,17 +1,12 @@
 import pyttsx3
 
-
 class GuiarVisitantes:
     def __init__(self):
         self.engine = pyttsx3.init()
         self.engine.setProperty('voice', 'com.apple.speech.synthesis.voice.alex')
-
         self.localizacao_dados = self._carregar_dados_localizacao()
 
     def _carregar_dados_localizacao(self):
-        """
-        Carrega os dados de localização do campus em um dicionário.
-        """
         return {
             "sala de aula": "As salas de aula estão localizadas no prédio principal, distribuídas em vários andares.",
             "escritório": "O escritório da administração está no segundo andar do prédio B.",
@@ -35,9 +30,6 @@ class GuiarVisitantes:
         }
 
     def engine_falar(self, texto):
-        """
-        Converte o texto em fala usando o motor pyttsx3.
-        """
         try:
             texto = str(texto)
             self.engine.say(texto)
@@ -46,9 +38,6 @@ class GuiarVisitantes:
             print(f"Erro ao converter texto em fala: {e}")
 
     def guiar(self, dados_de_voz):
-        """
-        Fornece informações de localização com base nos dados de voz fornecidos.
-        """
         try:
             for local, descricao in self.localizacao_dados.items():
                 if local in dados_de_voz:
@@ -58,3 +47,4 @@ class GuiarVisitantes:
         except Exception as e:
             self.engine_falar("Ocorreu um erro ao processar a solicitação.")
             print(f"Erro ao guiar visitantes: {e}")
+
