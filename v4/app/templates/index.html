@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baymax Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='CSS/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Bem-vindo ao Chat IA do Baymax</h1>
+    </header>
+    <div class="container">
+        <div class="chat-box">
+            <!-- Mensagens serão exibidas aqui -->
+        </div>
+        <div class="input-group">
+            <input type="text" id="messageInput" placeholder="Digite sua mensagem...">
+            <button type="submit">Enviar</button>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='JS/script.js') }}"></script>
+</body>
+</html>
