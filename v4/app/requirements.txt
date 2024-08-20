@@ -1,0 +1,3 @@
+Flask==2.3.2
+google-generativeai==0.1.1
+pyFirmata==1.1.0

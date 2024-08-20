@@ -1,0 +1,91 @@
+.telaIA {
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    background-color: #f5f5f5; /* Cor de fundo neutra */
+    margin: 0;
+    padding: 0;
+}
+
+.navbar {
+    background-color: azure; /* Cor da barra de navegação */
+    padding: 10px;
+    z-index: 1000;
+}
+
+.chat-container {
+    position: fixed; /* Alinha o chat de forma fixa no lado direito */
+    top: 0;
+    right: 0;
+    width: 1000px; /* Ajuste a largura conforme necessário */
+    height: 90%; /* Altura total da viewport */
+    border-radius: 10px;
+    background-color: #ffffff; /* Cor de fundo do chat */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    margin-top: 56px; /* Ajuste para não sobrepor a barra de navegação */
+}
+
+.chat-header {
+    background-color: #ff0000dc; /* Vermelho claro */
+    color: #ffffff;
+    padding: 10px;
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    text-align: center;
+    border-bottom: 1px solid #ddd;
+    font-size: 24px;
+}
+
+.chat-body {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    background-color: #f5f5f5; /* Cor de fundo do corpo do chat */
+    position: relative; /* Permite posicionar a imagem de forma absoluta dentro desta div */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-body img {
+    position: absolute; /* Posiciona a imagem no fundo */
+    width: 400px; /* Ajuste o tamanho da imagem conforme necessário */
+    height: 394px; /* Ajuste o tamanho da imagem conforme necessário */
+    opacity: 0.1; /* Ajusta a opacidade para tornar a imagem mais suave */
+    z-index: 1; /* Coloca a imagem atrás do conteúdo */
+}
+
+.chat-body > * {
+    position: relative; /* Garante que o conteúdo fique acima da imagem de fundo */
+    z-index: 2;
+}
+
+.chat-footer {
+    display: flex;
+    border-top: 1px solid #ddd;
+    padding: 10px;
+    background-color: #ffffff; /* Cor de fundo do rodapé */
+}
+
+.chat-footer input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.chat-footer button {
+    background-color: #ff0000; /* Vermelho */
+    border: none;
+    color: #ffffff;
+    padding: 10px;
+    margin-left: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.chat-footer button:hover {
+    background-color: #cc0000; /* Vermelho um pouco mais escuro */
+}

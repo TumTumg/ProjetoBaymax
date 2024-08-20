@@ -1,11 +1,3 @@
 from flask import Flask
-
-def create_app():
-    app = Flask(__name__)
-
-    with app.app_context():
-        from app import routes
-
-    return app
-
-app = create_app()
+app = Flask(__name__) #Criando a variavel app
+from app import routes

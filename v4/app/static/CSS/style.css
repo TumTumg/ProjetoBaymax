@@ -1,53 +1,257 @@
-body {
-    font-family: Arial, sans-serif;
+/* Estilos Globais */
+.telaIndex {
+    background-color: #b6b6b69d;
     margin: 0;
     padding: 0;
-    background-color: #f4f4f4;
+    font-family: 'Gill Sans', sans-serif;
+}
+.sobreNos{
+    background-color: #b6b6b69d;
+    margin: 0;
+    padding: 0;
+    font-family: 'Gill Sans', sans-serif;
+}
+.navbar {
+    background-color: azure; /* Cor da barra de navegação */
+    padding: 10px;
+    z-index: 1000;
+}
+.telaFuncionalidades{
+    background-color: #b6b6b69d;
+    margin: 0;
+    padding: 0;
+    font-family: 'Gill Sans', sans-serif;
+}
+.telaFechamento{
+    background-color: #b6b6b69d;
+    margin: 0;
+    padding: 0;
+    font-family: 'Gill Sans', sans-serif;
+}
+.inicial{
+    color: black;
 }
 
-header {
-    background-color: #333;
-    color: #fff;
-    padding: 10px 0;
+ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+/* Estilos do Menu de Navegação */
+nav {
+    background-color: #ffffff;
+    padding: 20px 0;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.nav-button {
+    display: inline-block;
+    background-color: #ff4444;
+    color: #ffffff;
+    padding: 12px 24px;
+    margin: 0 8px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 18px;
+    transition: background-color 0.3s ease;
+}
+
+.nav-button:hover {
+    background-color: #cc0000;
+}
+
+/* Estilos das Seções */
+section {
+    padding: 40px 20px;
     text-align: center;
 }
 
-.container {
-    width: 80%;
-    margin: auto;
-    overflow: hidden;
+/* Estilos das Imagens */
+.ti {
+    max-width: 30%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background-color: darkgrey;
 }
 
-.chat-box {
-    border: 1px solid #ccc;
-    padding: 10px;
-    background: #fff;
-    margin-top: 20px;
-    border-radius: 5px;
+.ti2 {
+    max-width: 25%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background-color: darkgrey;
 }
 
-.chat-box p {
-    margin: 0;
+/* Estilos das Imagens */
+.gd {
+    max-width: 70%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+ 
 }
 
-.input-group {
-    display: flex;
-    margin-top: 20px;
+h1{
+    color: black;
 }
 
-.input-group input {
-    flex: 1;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px 0 0 5px;
+h2{
+    color: #ff4444;
 }
 
-.input-group button {
-    padding: 10px 20px;
-    border: 1px solid #ccc;
-    border-left: none;
-    background: #333;
-    color: #fff;
-    cursor: pointer;
-    border-radius: 0 5px 5px 0;
+h3{
+    color: #ff4444;
+}
+
+p {
+    font-size: 120%;
+}
+
+.p1 {
+    font-size: 135%;
+}
+
+/* Estilos dos Artigos */
+article {
+    margin-bottom: 40px;
+    background-color: #ffffff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilos dos Botões */
+.botao {
+    display: inline-block;
+    text-decoration: none;
+    font-size: 18px;
+    text-align: center;
+    padding: 12px 24px;
+    background-color: #ff4444;
+    color: #ffffff;
+    border: 2px solid #cc0000;
+    border-radius: 12px;
+    margin: 0 20px; /* Aumentar a separação entre os botões */
+    transition: transform 0.3s ease, background-color 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.botao:hover {
+    transform: scale(1.1);
+    background-color: #cc0000;
+}
+
+.funcionalidade {
+    margin-bottom: 40px;
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.funcionalidade h3 {
+    color: #ff4444;
+}
+
+.funcionalidade p {
+    color: #333333;
+}
+
+footer {
+    background-color: #f0f0f0;
+    padding: 20px;
+    text-align: center;
+    margin-top: 30px;
+}
+
+.contato-info {
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.contato-info a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.contato-info a:hover {
+    text-decoration: underline;
+}
+
+
+
+@media screen and (max-width: 768px) {
+    body {
+        background-color: #b6b6b69d;
+        margin: 0;
+        padding: 0;
+        font-family: 'Gill Sans', sans-serif;
+    }
+
+    .ti2 {
+        max-width: 50%;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        background-color: darkgrey;
+    }
+
+    .ti {
+        max-width: 50%;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        background-color: darkgrey;
+    }
+    
+    
+    .botao {
+        display: inline-block; /* Alterado para inline-block para manter o tamanho conforme o conteúdo */
+        padding: 8px 16px; /* Adiciona algum espaço interno para o texto */
+        font-size: 14px; /* Reduz o tamanho da fonte */
+        border: 1px solid #ccc; /* Adiciona uma borda sólida cinza */
+        border-radius: 4px; /* Adiciona bordas arredondadas */
+        background-color: #f0f0f0; /* Adiciona uma cor de fundo mais clara */
+        color: #333; /* Altera a cor do texto para um tom mais escuro */
+        text-align: center; /* Centraliza o texto horizontalmente */
+        text-decoration: none; /* Remove a sublinhado padrão */
+        margin-right: 5px; /* Adiciona um espaço maior entre os botões */
+        margin-bottom: 10px; /* Adiciona uma margem inferior para separar os botões verticalmente */
+    }
+    
+    .botao:hover {
+        background-color:#880000; /* Muda a cor de fundo ao passar o mouse */
+    }
+    
+    .nav-button {
+        display: inline-block; /* Alterado para inline-block para manter o tamanho conforme o conteúdo */
+        padding: 8px 16px; /* Adiciona algum espaço interno para o texto */
+        font-size: 14px; /* Reduz o tamanho da fonte */
+        border: none; /* Remove a borda */
+        border-radius: 4px; /* Adiciona bordas arredondadas */
+        background-color: #ff4444; /* Adiciona uma cor de fundo vermelha*/
+        color: #fff; /* Altera a cor do texto para branco */
+        text-align: center; /* Centraliza o texto horizontalmente */
+        text-decoration: none; /* Remove a sublinhado padrão */
+        margin-right: 25px; /* Adiciona um espaço maior entre os botões */
+        margin-bottom: 10px; /* Adiciona uma margem inferior para separar os botões verticalmente */
+    }
+    
+    .nav-button:hover {
+        background-color: #810000; /* Muda a cor de fundo ao passar o mouse */
+    }
 }
