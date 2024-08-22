@@ -15,7 +15,7 @@
     position: fixed; /* Alinha o chat de forma fixa no lado direito */
     top: 0;
     right: 0;
-    width: 1000px; /* Ajuste a largura conforme necessário */
+    width: 100%/* Ajuste a largura conforme necessário */
     height: 90%; /* Altura total da viewport */
     border-radius: 10px;
     background-color: #ffffff; /* Cor de fundo do chat */

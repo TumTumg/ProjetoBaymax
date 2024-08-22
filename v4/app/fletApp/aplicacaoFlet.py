@@ -1,35 +1,39 @@
 import flet as ft
-import chatIAFlet  # Importando corretamente
-
-def create_button(text, page=None):
-    # Cria um botão e define o comportamento ao clicar
-    if text == "Chat IA":
-        return ft.ElevatedButton(text, on_click=lambda e: page.go("/chatIAFlet.py"))  # Adiciona a navegação para /chat
-    else:
-        return ft.ElevatedButton(text)  # Para outros botões, você pode definir outras funcionalidades conforme necessário
+from styles import button_style, page_style  # Importando os estilos
 
 def main(page: ft.Page):
-    page.title = "Projeto Baymax - Interface"
-    page.vertical_alignment = ft.MainAxisAlignment.CENTER
-    page.bgcolor = "#FFFFFF"
+    page.title = "Projeto Baymax"
+    page.bgcolor = page_style()["bgcolor"]  # Definindo o fundo da página
 
-    # Criando os botões
-    buttons = [
-        create_button("Chat IA", page),  # Passando a página para o botão de Chat IA
-        create_button("Reciclagem e Limpeza"),
-        create_button("Temperatura e Umidade"),
-        create_button("Biblioteca SENAC"),
-        create_button("Acompanhamento de Estudantes"),
-        create_button("Conexão SIPAT"),
-        create_button("Sobre Nós"),
-        create_button("Contato"),
-        create_button("Sair"),
-    ]
+    # Função para navegar entre páginas
+    def navigate(e, path):
+        page.go(path)
 
-    for button in buttons:
-        page.add(button)
+    # Criação da barra de navegação
+    nav_bar = ft.Row(
+        controls=[
+            ft.ElevatedButton("Home", on_click=lambda e: navigate(e, "/home"), style=button_style()),
+            ft.ElevatedButton("Chat IA", on_click=lambda e: navigate(e, "/chatIAFlet.py"), style=button_style()),  # Navega para o arquivo chatIAFlet.py
+            ft.ElevatedButton("Sobre Nós", on_click=lambda e: navigate(e, "/sobre"), style=button_style()),
+            ft.ElevatedButton("Contato", on_click=lambda e: navigate(e, "/contato"), style=button_style()),
+            ft.ElevatedButton("Sair", on_click=lambda e: page.window_close(), style=button_style()),  # Fecha o aplicativo
+        ],
+        alignment=ft.MainAxisAlignment.SPACE_EVENLY  # Alinhamento dos botões
+    )
 
-    # Define a rota para o chat IA
-    page.route("/chat", chatIAFlet.main)
+    # Envolvendo a barra de navegação em um Container para aplicar o estilo
+    nav_container = ft.Container(
+        content=nav_bar,
+        bgcolor=ft.colors.GREY_50,  # Alterado para um branco mais escuro
+        padding=ft.Padding(top=10, right=10, bottom=10, left=10),
+        border_radius=ft.BorderRadius(10, 10, 0, 0)  # Bordas arredondadas apenas na parte superior
+    )
 
+    # Adiciona a barra de navegação à página
+    page.add(nav_container)
+
+    # Outros conteúdos da página
+    page.add(ft.Text("Bem-vindo ao Projeto Baymax!"))
+
+# Configuração do aplicativo
 ft.app(target=main)
