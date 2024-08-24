@@ -1,6 +1,6 @@
 import flet as ft
 import google.generativeai as genai
-from styles import button_style, page_style  # Importando os estilos
+from styles import button_style  # Importando os estilos
 
 def main(page: ft.Page):
     # Configuração da API do Gemini
@@ -30,12 +30,15 @@ def main(page: ft.Page):
         spacing=10  # Espaçamento entre as mensagens
     )
 
-    message_input = ft.TextField(hint_text="Escreva sua mensagem...")
+    message_input = ft.TextField(hint_text="Escreva sua mensagem...", width=300)
 
     def send_message(e):
-        texto = message_input.value
+        texto = message_input.value.strip()
         if texto.lower() == "sair":
             page.go("/")  # Volta para a página principal
+            return
+
+        if not texto:  # Verifica se a mensagem não está vazia
             return
 
         try:
@@ -44,7 +47,7 @@ def main(page: ft.Page):
 
             # Envia a mensagem ao modelo e obtém a resposta
             response = chat.send_message(texto)
-            chat_box.controls.append(ft.Text(f"Baymax: {response.text}", size=16, color=ft.colors.GREEN_800))
+            chat_box.controls.append(ft.Text(f"Baymax: {response.text}", size=16, color=ft.colors.RED))
             message_input.value = ""  # Limpa o campo de entrada
             page.update()  # Atualiza a página para mostrar a nova mensagem
 
@@ -52,58 +55,109 @@ def main(page: ft.Page):
             chat_box.scroll_to(chat_box.controls[-1])  # Rola para a última mensagem
         except Exception as e:
             chat_box.controls.append(ft.Text(f"Erro: {e}", color=ft.colors.RED_600))
+            page.update()  # Atualiza a página para mostrar a mensagem de erro
 
     # Permite o envio da mensagem com a tecla Enter
     message_input.on_submit = send_message
 
     # Botão de enviar
-    send_button = ft.ElevatedButton("Enviar", on_click=send_message)
+    send_button = ft.ElevatedButton("Enviar", on_click=send_message, bgcolor=ft.colors.RED_600, color=ft.colors.WHITE)
 
-    # Criação da barra de navegação
-    def navigate(e, path):
-        page.go(path)
-
-    nav_bar = ft.Row(
-        controls=[
-            ft.ElevatedButton("Home", on_click=lambda e: navigate(e, "/home"), style=button_style()),
-            ft.ElevatedButton("Chat IA", on_click=lambda e: navigate(e, "/chatIAFlet.py"), style=button_style()),
-            ft.ElevatedButton("Sobre Nós", on_click=lambda e: navigate(e, "/sobre"), style=button_style()),
-            ft.ElevatedButton("Contato", on_click=lambda e: navigate(e, "/contato"), style=button_style()),
-            ft.ElevatedButton("Sair", on_click=lambda e: page.window_close(), style=button_style()),
-        ],
-        alignment=ft.MainAxisAlignment.SPACE_EVENLY  # Alinhamento dos botões
-    )
-
-    # Envolvendo a barra de navegação em um Container para aplicar o estilo
-    nav_container = ft.Container(
-        content=nav_bar,
-        bgcolor=ft.colors.GREY_50,  # Alterado para um branco mais escuro
-        padding=ft.Padding(top=10, right=10, bottom=10, left=10),
-        border_radius=ft.BorderRadius(top_left=10, top_right=10, bottom_left=0, bottom_right=0)  # Bordas arredondadas na parte superior
-    )
-
-    # Criação do contêiner do chat
+    # Criação do contêiner para o chat
     chat_container = ft.Container(
-        content=ft.Column(
-            controls=[chat_box,
-                      ft.Row(controls=[message_input, send_button], alignment=ft.MainAxisAlignment.END)],  # Barra de mensagem
-            alignment=ft.MainAxisAlignment.START,
-            spacing=10
-        ),
-        bgcolor=ft.colors.WHITE,  # Fundo branco para o chat
-        padding=ft.Padding(10, 10, 10, 10),  # Padding correto
-        border_radius=ft.BorderRadius(top_left=10, top_right=10, bottom_left=10, bottom_right=10),  # Bordas arredondadas
-        width=page.width - 40,  # Largura quase total da página
-        height=page.height - 100,  # Altura da página, ajuste conforme necessário
-        border=ft.border.all(1, ft.colors.GREY_400)  # Borda cinza clara
+        content=chat_box,
+        bgcolor=ft.colors.WHITE,
+        padding=20,
+        border_radius=10,
+        height=500,
+        width=400,
+        alignment=ft.alignment.top_left,
+        border=ft.border.all(1, ft.colors.GREY_300)
     )
 
-    # Adiciona a barra de navegação e o contêiner de chat à página
-    page.add(nav_container)
-    page.add(chat_container)
+    # Layout da página
+    page.add(
+        ft.Row(
+            [
+                chat_container,  # Retângulo do lado direito
+                ft.Column(
+                    controls=[
+                        message_input,
+                        send_button
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            spacing=10
+        )
+    )
+
+    def route_change(route):
+        page.views.clear()
+        page.views.append(
+            ft.View(
+                "/",
+                [
+                    ft.AppBar(title=ft.Text("Seu Assistente Baymax"), bgcolor=ft.colors.SURFACE_VARIANT),
+                    ft.ElevatedButton("Chat IA", on_click=lambda _: page.go("/chatIAFlet.py")),
+                    ft.ElevatedButton("Sobre Nós", on_click=lambda _: page.go("/sobre")),
+                    ft.ElevatedButton("Contato", on_click=lambda _: page.go("/contato")),
+                    ft.ElevatedButton("Sair", on_click=lambda e: page.window_close()),
+                ],
+            )
+        )
+        if page.route == "/chatIAFlet.py":
+            page.views.append(
+                ft.View(
+                    "/chatIAFlet.py",
+                    [
+                        ft.AppBar(title=ft.Text("Chat IA"), bgcolor=ft.colors.SURFACE_VARIANT),
+                        chat_container,  # Retângulo do lado direito
+                        ft.Row(
+                            controls=[
+                                message_input,
+                                send_button,
+                            ],
+                        ),
+                        ft.ElevatedButton("Go Home", on_click=lambda _: page.go("/")),
+                    ],
+                )
+            )
+        elif page.route == "/sobre":
+            page.views.append(
+                ft.View(
+                    "/sobre",
+                    [
+                        ft.AppBar(title=ft.Text("Sobre Nós"), bgcolor=ft.colors.SURFACE_VARIANT),
+                        ft.ElevatedButton("Go Home", on_click=lambda _: page.go("/")),
+                    ],
+                )
+            )
+        elif page.route == "/contato":
+            page.views.append(
+                ft.View(
+                    "/contato",
+                    [
+                        ft.AppBar(title=ft.Text("Contato"), bgcolor=ft.colors.SURFACE_VARIANT),
+                        ft.ElevatedButton("Go Home", on_click=lambda _: page.go("/")),
+                    ],
+                )
+            )
+        page.update()
+
+    def view_pop(view):
+        page.views.pop()
+        top_view = page.views[-1]
+        page.go(top_view.route)
+
+    page.on_route_change = route_change
+    page.on_view_pop = view_pop
+    page.go(page.route)
 
     # Atualiza a página ao iniciar
     page.update()
 
-# Configuração do aplicativo
-ft.app(target=main)
+# Chamada da função main para iniciar a aplicação
+if __name__ == "__main__":
+    ft.app(target=main)

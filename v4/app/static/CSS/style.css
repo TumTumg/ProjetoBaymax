@@ -22,6 +22,7 @@
     padding: 0;
     font-family: 'Gill Sans', sans-serif;
 }
+
 .telaFechamento{
     background-color: #b6b6b69d;
     margin: 0;
@@ -98,7 +99,7 @@ section {
     margin: 0 auto;
     border-radius: 10px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
- 
+
 }
 
 h1{
@@ -115,6 +116,8 @@ h3{
 
 p {
     font-size: 120%;
+    color: red;
+    font-weight: bold;
 }
 
 .p1 {
@@ -187,6 +190,8 @@ footer {
 .contato-info a:hover {
     text-decoration: underline;
 }
+
+
 
 
 

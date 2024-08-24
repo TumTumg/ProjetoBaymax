@@ -4,7 +4,7 @@ import time
 def main():
     print("Iniciando Assistente")
 
-    porta = "/dev/ttyUSB0"  # Ajuste para a porta correta do seu Arduino
+    porta = "COM2"  # Ajuste para a porta correta do seu Arduino
     try:
         board = Arduino(porta)
     except Exception as e:

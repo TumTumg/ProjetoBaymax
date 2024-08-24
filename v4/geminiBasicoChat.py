@@ -13,18 +13,16 @@ placa = Arduino(portaArduino)
 ledPin = 13
 placa.digital[ledPin].write(0)
 
-# Configuração do modelo
-generation_config = {
-    "temperature": 1,
-    "top_p": 0.95,
-    "top_k": 64,
-    "max_output_tokens": 8192,
-    "response_mime_type": "text/plain",
-}
-
+# Configuração do modelo com todas as instruções detalhadas sobre o Baymax
 model = genai.GenerativeModel(
     model_name="gemini-1.5-flash",
-    generation_config=generation_config,
+    generation_config={
+        "temperature": 0.7,  # Ajustar temperatura para respostas mais coesas
+        "top_p": 0.9,
+        "top_k": 50,
+        "max_output_tokens": 1024,  # Reduzir o tamanho da resposta
+        "response_mime_type": "text/plain",
+    },
     system_instruction=(
         "Baymax: Assistente Virtual e Sistema de Gestão de Campus\n"
         "Visão Geral\n"
