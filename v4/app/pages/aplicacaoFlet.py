@@ -1,6 +1,6 @@
 import flet as ft
 from flet import Page
-from v4.app.fletApp.pages.chatIAFlet import main as chat_main  # Importa a função main do chatIAFlet
+from chatIAFlet import main as chat_main  # Importa a função main do chatIAFlet
 
 
 class Inicial:
@@ -8,7 +8,6 @@ class Inicial:
         self.page = page
         self.page.on_route_change = self.route_change
         self.page.go("/")  # Carrega a view inicial
-        self.page.update()
 
     def route_change(self, route):
         self.page.views.clear()  # Limpa as views atuais
@@ -16,7 +15,7 @@ class Inicial:
         # Mapeamento das rotas
         views = {
             "/": self.build_home_view,
-            "/chatIAFlet.py": self.load_chat,
+            "/chatIAFlet": self.load_chat,  # Alterado para uma rota sem .py
             "/sobre": self.build_about_view,
             "/contato": self.build_contact_view,
         }
@@ -88,7 +87,7 @@ class Inicial:
 
     def handle_navigation(self, e):
         """Função para lidar com a navegação ao clicar em um item da nav bar."""
-        destinations = ["/chatIAFlet.py", "/sobre", "/contato", None]
+        destinations = ["/chatIAFlet", "/sobre", "/contato", None]
         route = destinations[e.control.selected_index]
 
         if route:

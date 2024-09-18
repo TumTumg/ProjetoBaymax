@@ -43,7 +43,7 @@ class Chat:
     def create_interface(self):
         self.message_input.on_submit = self.send_message  # Envia mensagem ao pressionar Enter
         send_button = ft.ElevatedButton("Enviar", on_click=self.send_message, bgcolor=ft.colors.RED_600, color=ft.colors.WHITE)
-        back_button = ft.ElevatedButton("Voltar à Página Inicial", on_click=lambda _: self.page.go("/"),
+        back_button = ft.ElevatedButton("Voltar à Página Inicial", on_click=lambda _: self.page.go("/aplicacaoFlet"),
                                         bgcolor=ft.colors.BLUE_800, color=ft.colors.WHITE)
         clear_button = ft.ElevatedButton("Limpar Chat", on_click=lambda _: self.clear_chat(), bgcolor=ft.colors.BLUE_600, color=ft.colors.WHITE)
 
