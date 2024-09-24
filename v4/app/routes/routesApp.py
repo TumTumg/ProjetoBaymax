@@ -1,5 +1,9 @@
-from flet import Page
-from ..pages.chatIAFlet import main as chat_main  # Importa a função main do chatIAFlet
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pages.chatIAFlet import main as chat_main
+
 
 class Inicial:
     def __init__(self, page: Page):
