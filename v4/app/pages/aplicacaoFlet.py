@@ -1,5 +1,8 @@
 import flet as ft
 import google.generativeai as genai
+import pyttsx3  # Importa a biblioteca de texto para fala
+import threading
+
 
 class Inicial:
     def __init__(self, page):
@@ -7,8 +10,20 @@ class Inicial:
         self.model = self.initialize_model()  # Inicializa o modelo aqui
         self.chat = self.model.start_chat(history=[])  # Inicializa o chat com o histórico vazio
 
+        self.tts_engine = pyttsx3.init()  # Inicializa o motor de TTS
+        if not self.set_voice():  # Configura a voz masculina e verifica se foi bem-sucedido
+            print("Nenhuma voz masculina encontrada, utilizando a voz padrão.")
         self.page.on_route_change = self.route_change  # Define a função de mudança de rota
         self.build_home_view()  # Constrói a view inicial
+
+    def set_voice(self):
+        """Configura a voz masculina para o motor de TTS."""
+        voices = self.tts_engine.getProperty('voices')
+        for voice in voices:
+            if "male" in voice.name.lower():  # Procura uma voz masculina
+                self.tts_engine.setProperty('voice', voice.id)
+                return True  # Retorna True se uma voz masculina foi encontrada
+        return False  # Retorna False se nenhuma voz masculina foi encontrada
 
     def initialize_model(self):
         # Configuração da API do Gemini
@@ -24,136 +39,16 @@ class Inicial:
                 "max_output_tokens": 1024,
                 "response_mime_type": "text/plain",
             },
-            system_instruction=(
-                "Baymax: Assistente Virtual e Sistema de Gestão de Campus\n"
-                "Visão Geral\n"
-                "Baymax é um assistente virtual multifuncional desenvolvido para atuar como um hub central de informações e um sistema de gestão para o campus. Com uma interface amigável e suporte avançado para interações por voz, Baymax não só orienta visitantes, mas também gerencia um vasto banco de dados com informações detalhadas sobre o campus, incluindo salas, cursos, professores, eventos e recursos disponíveis.\n\n"
-
-                "Funcionalidades Principais\n"
-                "Banco de Dados Completo do Campus\n"
-                "Baymax funciona como um banco de dados centralizado que armazena e gerencia informações críticas sobre o campus. Este banco de dados pode ser consultado tanto por visitantes quanto por administradores, oferecendo um sistema de gestão eficiente e acessível.\n\n"
-
-                "Estrutura do Banco de Dados\n"
-                "Salas e Instalações:\n"
-                "Nome da Sala: Identificador único de cada sala.\n"
-                "Andar: Localização dentro do edifício.\n"
-                "Capacidade: Quantidade de pessoas que a sala pode acomodar.\n"
-                "Equipamentos Disponíveis: Projetores, computadores, sistema de som, etc.\n"
-                "Uso Atual: Informações sobre o curso ou evento em andamento.\n"
-
-                "Aqui está a lista de salas disponíveis no campus:\n"
-                "5º Andar:\n"
-                " - Salas 501 a 507:\n"
-                "   - Sala 506: Bar / Cozinha Experimental\n"
-                "   - Sala 507: Cozinha Pedagógica\n"
-                "4º Andar:\n"
-                " - Salas 401 a 408:\n"
-                "   - Sala 402: Lab. Design de Interiores\n"
-                "   - Sala 403: Lab. Rádio\n"
-                "   - Sala 404: Lab. Informática\n"
-                "   - Sala 405: Lab. Vídeo\n"
-                "   - Salas 406 e 407: Lab. Informática\n"
-                "3º Andar:\n"
-                " - Salas 301 a 306:\n"
-                "   - Sala 303: Manicure / Pedicure\n"
-                "   - Sala 304: Moda / Turismo\n"
-                "   - Sala 305: Farmácia / Enfermagem / Meio Ambiente\n"
-                "   - Sala 306: Beleza / Visagismo\n"
-                "2º Andar:\n"
-                " - Salas 201 a 212:\n"
-                "   - Sala 201: Lab. Informática\n"
-                "1º Andar:\n"
-                " - Salas 101 a 107:\n"
-                "   - Sala 107: LabSenac\n"
-                "Térreo:\n"
-                " - Atendimento ao Cliente\n"
-                " - Secretaria / Administração\n"
-                " - Acesso pela Av. Senator Vergueiro\n"
-                "1º Subsolo:\n"
-                " - Estacionamento\n"
-                " - Serviços\n"
-                "2º Subsolo:\n"
-                " - Biblioteca\n"
-                " - Docentes\n"
-                "3º Subsolo:\n"
-                " - Auditório\n"
-                " - Acesso pela Av. Alaino Inoto\n\n"
-
-                "Cursos Oferecidos:\n"
-                "Nome do Curso: Identificador do curso.\n"
-                "Área: Categoria do curso (ex.: Tecnologia, Saúde, Artes, etc.).\n"
-                "Duração: Tempo de duração do curso (em horas ou meses).\n"
-                "Pré-requisitos: Qualificações necessárias para inscrição.\n"
-                "Professores: Lista de professores associados ao curso.\n"
-
-                "Professores e Funcionários:\n"
-                "Nome do Professor/Funcionário: Identificador da pessoa.\n"
-                "Departamento: Setor ao qual o professor/funcionário pertence.\n"
-                "Horários de Atendimento: Horários em que estão disponíveis para consultas.\n"
-                "Contato: Informações de contato como email e telefone.\n"
-
-                "Eventos e Atividades:\n"
-                "Nome do Evento: Identificador do evento.\n"
-                "Data e Hora: Data e horário de início e término.\n"
-                "Localização: Sala ou área do campus onde o evento acontecerá.\n"
-                "Descrição: Breve descrição do evento.\n"
-                "Público-Alvo: Grupo de pessoas para quem o evento é destinado (ex.: Alunos, Professores, Aberto ao Público, etc.).\n"
-
-                "Orientação e Navegação no Campus\n"
-                "Navegação Precisa: Baymax orienta visitantes e estudantes pelo campus, oferecendo direções detalhadas baseadas em mapas digitalizados e informações em tempo real sobre a ocupação das salas e disponibilidade de instalações.\n"
-                "Tecnologias Integradas:\n"
-                "GPS e Mapas Digitais: Navegação detalhada com base em mapas atualizados do campus.\n"
-                "Reconhecimento de Voz: Recebe comandos de voz e oferece direções com feedback em tempo real.\n"
-
-                "Interação por Voz\n"
-                "Processamento de Comandos: Baymax responde a comandos de voz de maneira natural, entendendo e executando solicitações como \"Onde está a Sala 306?\" ou \"Quais cursos de Tecnologia estão disponíveis atualmente?\".\n"
-                "Conversão de Texto em Fala: Baymax responde verbalmente, proporcionando uma experiência interativa e acessível a todos os usuários, incluindo aqueles com necessidades especiais.\n"
-
-                "Recuperação e Pesquisa de Informações\n"
-                "Busca Otimizada: Baymax utiliza APIs para realizar pesquisas em motores de busca como Google e Bing, oferecendo resultados personalizados de acordo com as necessidades dos usuários.\n"
-                "Acesso Rápido a Informações: Baymax pode abrir páginas web relevantes diretamente em seu display ou em dispositivos conectados, facilitando o acesso a informações específicas.\n"
-
-                "Gestão de Eventos e Cursos\n"
-                "Calendário de Eventos: Baymax gerencia um calendário centralizado de eventos do campus, permitindo que os usuários consultem rapidamente informações sobre palestras, workshops, feiras, entre outros.\n"
-                "Informações de Curso: Os alunos podem consultar informações detalhadas sobre os cursos, incluindo horários, professores, conteúdo programático e requisitos de inscrição.\n"
-
-                "Medidas de Segurança\n"
-                "Proteção Contra SQL Injection: Baymax implementa técnicas avançadas de segurança para proteger seu banco de dados contra ataques maliciosos, garantindo a integridade dos dados.\n"
-                "Monitoramento Contínuo: Baymax monitora constantemente o tráfego de dados, prevenindo e reagindo a possíveis ameaças.\n"
-
-                "Configuração do Sistema\n"
-                "Banco de Dados MySQL:\n"
-                "Host: localhost\n"
-                "Nome do Banco de Dados: gestao_campus\n"
-                "Tabelas Principais: Salas, Cursos, Professores, Eventos, Visitantes\n"
-                "Usuário: root\n"
-                "Senha: (configurada pelo administrador)\n"
-
-                "API Integração: Integra-se com diversas APIs gratuitas para atualização de dados, como APIs de clima para fornecer informações meteorológicas em tempo real ou APIs de transporte para fornecer horários de ônibus e metrôs.\n"
-
-                "Cenários de Uso\n"
-                "Orientação e Navegação\n"
-                "Exemplo: Um visitante pergunta ao Baymax como chegar à Sala 404. Baymax consulta o banco de dados, verifica o mapa digitalizado, e fornece direções detalhadas, considerando até mesmo a ocupação atual das salas para sugerir o caminho mais rápido.\n"
-
-                "Consulta de Cursos e Professores\n"
-                "Exemplo: Um aluno deseja saber quais cursos de Design estão disponíveis. Baymax consulta a tabela de cursos, filtra os resultados pela área de interesse e apresenta informações detalhadas, incluindo horários, professores e pré-requisitos.\n"
-
-                "Gerenciamento e Consulta de Eventos\n"
-                "Exemplo: Um professor precisa registrar um novo evento no campus. Baymax permite o cadastro direto do evento no banco de dados, atualizando o calendário do campus e notificando os alunos interessados.\n"
-
-                "Monitoramento de Segurança\n"
-                "Exemplo: Baymax detecta uma tentativa de acesso não autorizado ao banco de dados. Imediatamente, ativa protocolos de segurança, restringindo o acesso e notificando os administradores do sistema.\n"
-
-                "Atributos Distintivos\n"
-                "Todos os códigos do GTA San Andreas são emitidos diretamente pelo nosso banco de dados!\n"
-                "Estatísticas detalhadas sobre o uso das instalações do campus.\n"
-                "Feedback contínuo dos usuários para otimizar a experiência no campus.\n"
-            )
+            system_instruction="..."  # Insira a string correta aqui
         )
+
         return model
 
-    def route_change(self, route):
+    def route_change(self, route_event_or_str):
         self.page.views.clear()  # Limpa as views atuais
+
+        # Verifica se o argumento é uma string (rota direta) ou um evento de mudança de rota
+        route = route_event_or_str.route if hasattr(route_event_or_str, 'route') else route_event_or_str
 
         # Mapeamento das rotas
         views = {
@@ -163,7 +58,7 @@ class Inicial:
             "/contato": self.build_contact_view,
         }
 
-        view_function = views.get(route, self.build_error_view)
+        view_function = views.get(route, self.build_error_view)  # Usa a rota obtida
         view_function()  # Chama a função de visualização correspondente
         self.page.update()  # Atualiza a página
 
@@ -188,6 +83,37 @@ class Inicial:
         )
         self.page.update()  # Atualiza a página após adicionar a view
 
+        # Exibe a notificação de boas-vindas
+        self.show_welcome_notification("Usuário")  # Substitua "Usuário" pelo nome do usuário real
+
+    def show_welcome_notification(self, usuario):
+        """Exibe uma notificação de boas-vindas ao usuário."""
+        notification_text = (
+            f"Bem Vindo {usuario}!\n"
+            "---Novidades!---\n"
+            "- Apresentamos o chat IA\n"
+            "- Novas Funcionalidades!\n"
+            "- Correção de bugs\n"
+            "- Suporte ao usuário\n"
+            "- Promoção à saúde\n"
+            "- Biblioteca Senac\n"
+            "- Auxílio em eventos\n"
+            "-----//-----\n"
+            "Por quê você mesmo não dá uma olhada?"
+        )
+
+        self.page.snackbar = ft.Snackbar(
+            content=ft.Text(notification_text),
+            action="Explorar",
+            on_action=self.explore  # Ação ao clicar no botão
+        )
+        self.page.snackbar.open = True  # Abre o Snackbar
+        self.page.update()
+
+    def explore(self, e):
+        """Função chamada quando o usuário clica em 'Explorar'."""
+        print("Explorar clicado!")  # Aqui você pode adicionar a lógica para direcionar o usuário à seção desejada
+
     def handle_navigation(self, e):
         # Manipula a navegação entre as diferentes views
         if e.control.selected_index == 0:  # Chat IA
@@ -201,87 +127,169 @@ class Inicial:
 
         self.route_change(self.page.route)  # Atualiza a rota após a seleção
 
-        def build_chat_view(self):
-            self.chat_box = ft.Column(scroll="auto", expand=True, alignment=ft.MainAxisAlignment.START, spacing=10)
-            self.message_input = ft.TextField(hint_text="Escreva sua mensagem...", expand=True)
+    def build_chat_view(self):
+        # Layout de chat com uma caixa de entrada de mensagens e o histórico de conversas
+        self.chat_box = ft.Column(scroll="auto", expand=True, alignment=ft.MainAxisAlignment.START, spacing=10)
+        self.message_input = ft.TextField(hint_text="Digite sua mensagem...", expand=True, on_submit=self.send_message)
 
-            # Set up the message submission event
-            self.message_input.on_submit = self.send_message  # Call send_message when submitted
-
-            # Create a button to send messages
-            send_button = ft.IconButton(
-                icon=ft.icons.SEND,
-                on_click=self.send_message,
-                tooltip="Enviar mensagem"
+        self.page.views.append(
+            ft.View(
+                "/chatIAFlet",
+                [
+                    ft.AppBar(title=ft.Text("Chat IA"), bgcolor=ft.colors.SURFACE_VARIANT),
+                    ft.Container(self.chat_box, expand=True, padding=10),
+                    ft.Row(
+                        controls=[
+                            self.message_input,
+                            ft.ElevatedButton("Enviar", on_click=self.send_message, bgcolor=ft.colors.RED, color=ft.colors.WHITE),
+                            ft.ElevatedButton("Limpar Chat", on_click=self.clear_chat, bgcolor=ft.colors.RED, color=ft.colors.WHITE),
+                        ],
+                        alignment=ft.MainAxisAlignment.END,
+                    ),
+                    # Adiciona o botão de voltar na mesma linha
+                    self.build_back_button(),
+                ],
             )
+        )
+        self.page.update()
 
-            # Add the chat box and input field to the view
-            self.page.views.append(
-                ft.View(
-                    "/chatIAFlet",
+    def send_message(self, e):
+        texto = self.message_input.value.strip()
+        if texto.lower() == "sair":
+            self.page.go("/")  # Volta para a página principal
+            return
+
+        if not texto:
+            return
+
+        if getattr(self, 'processing_message', False):  # Verifica se já está processando uma mensagem
+            return
+
+        self.processing_message = True  # Define que está processando uma mensagem
+
+        try:
+            # Adiciona a mensagem do usuário
+            self.chat_box.controls.append(
+                ft.Row(
                     [
-                        ft.AppBar(title=ft.Text("Chat com Baymax"), bgcolor=ft.colors.SURFACE_VARIANT),
-                        self.chat_box,
-                        ft.Row([self.message_input, send_button], spacing=10)
+                        ft.Text(f"Você: {texto}", size=16, color=ft.colors.BLUE_800),
                     ],
+                    alignment=ft.MainAxisAlignment.END  # Alinha a mensagem à direita
                 )
             )
-            self.page.update()  # Atualiza a página após adicionar a view
 
-        def send_message(self, e):
-            user_message = self.message_input.value.strip()
-            if user_message:  # Verifica se a mensagem não está vazia
-                # Adiciona a mensagem do usuário ao chat
-                self.chat_box.controls.append(ft.Text(f"Você: {user_message}", size=16))
+            # Envia a mensagem e recebe a resposta
+            response = self.chat.send_message(texto)
 
-                # Envia a mensagem para o modelo Gemini
-                response = self.chat.send_message(user_message)
-                # Adiciona a resposta do modelo ao chat
-                self.chat_box.controls.append(ft.Text(f"Baymax: {response.text}", size=16))
-
-                # Limpa o campo de entrada
-                self.message_input.value = ""
-                self.chat_box.scroll = "auto"  # Rola para mostrar a nova mensagem
-                self.page.update()  # Atualiza a página para refletir as novas mensagens
-
-        def build_about_view(self):
-            self.page.views.append(
-                ft.View(
-                    "/sobre",
+            # Exibe a resposta na interface
+            self.chat_box.controls.append(
+                ft.Row(
                     [
-                        ft.AppBar(title=ft.Text("Sobre Nós"), bgcolor=ft.colors.SURFACE_VARIANT),
-                        ft.Text("Informações sobre o assistente Baymax..."),
+                        ft.Text(f"Baymax: {response.text}", size=16, color=ft.colors.RED),
                     ],
+                    alignment=ft.MainAxisAlignment.START  # Alinha a resposta à esquerda
+                )
+            )
+
+            # Limpa o campo de entrada
+            self.message_input.value = ""
+
+            # Atualiza a página para mostrar as mensagens
+            self.page.update()
+
+            # Faz o Baymax "falar" a resposta após um breve atraso usando threading
+            threading.Timer(0.1, self.speak, args=[response.text]).start()  # Espera 0.1 segundos antes de falar
+
+            # Rolagem para a última mensagem
+            self.chat_box.scroll_to(self.chat_box.controls[-1])
+        except Exception as e:
+            # Adiciona um erro à caixa de chat se algo falhar
+            self.chat_box.controls.append(
+                ft.Row(
+                    [
+                        ft.Text(f"Erro: {str(e)}", size=16, color=ft.colors.RED),
+                    ],
+                    alignment=ft.MainAxisAlignment.START
                 )
             )
             self.page.update()
+        finally:
+            self.processing_message = False  # Libera a flag de processamento
 
-        def build_contact_view(self):
-            self.page.views.append(
-                ft.View(
-                    "/contato",
-                    [
-                        ft.AppBar(title=ft.Text("Contato"), bgcolor=ft.colors.SURFACE_VARIANT),
-                        ft.Text("Formulário de contato..."),
-                    ],
-                )
+    def speak(self, text):
+        """Transforma texto em fala."""
+        try:
+            self.tts_engine.say(text)
+            self.tts_engine.runAndWait()
+        except Exception as e:
+            print(f"Erro ao falar: {str(e)}")  # Registra qualquer erro no TTS
+
+    def clear_chat(self, e):
+        """Limpa o histórico de chat."""
+        self.chat_box.controls.clear()  # Limpa os controles de chat
+        self.page.update()  # Atualiza a página
+
+    def build_about_view(self):
+        # Visualização da página "Sobre"
+        self.page.views.append(
+            ft.View(
+                "/sobre",
+                [
+                    ft.AppBar(title=ft.Text("Sobre Nós"), bgcolor=ft.colors.SURFACE_VARIANT),
+                    ft.Text("Esta é a página sobre o assistente Baymax.", size=24),
+                    self.build_back_button(),
+                ],
             )
-            self.page.update()
+        )
+        self.page.update()
 
-        def build_error_view(self):
-            self.page.views.append(
-                ft.View(
-                    "/error",
-                    [
-                        ft.AppBar(title=ft.Text("Erro"), bgcolor=ft.colors.SURFACE_VARIANT),
-                        ft.Text("Página não encontrada!", size=24),
-                    ],
-                )
+    def build_contact_view(self):
+        # Visualização da página "Contato"
+        self.page.views.append(
+            ft.View(
+                "/contato",
+                [
+                    ft.AppBar(title=ft.Text("Contato"), bgcolor=ft.colors.SURFACE_VARIANT),
+                    ft.Text("Esta é a página de contato.", size=24),
+                    self.build_back_button(),
+                ],
             )
-            self.page.update()
+        )
+        self.page.update()
 
-    # Rodando a aplicação
-    def main(page):
-        Inicial(page)
+    def build_back_button(self):
+        """Constrói um botão de voltar."""
+        return ft.ElevatedButton("Voltar", on_click=lambda e: self.page.go("/"))
 
-    ft.app(target=main)
+    def build_error_view(self):
+        """Exibe uma página de erro."""
+        self.page.views.append(
+            ft.View(
+                "/error",
+                [
+                    ft.AppBar(title=ft.Text("Erro"), bgcolor=ft.colors.RED),
+                    ft.Text("Erro: Página não encontrada.", size=24),
+                    self.build_back_button(),
+                ],
+            )
+        )
+        self.page.update()
+
+
+def main(page: ft.Page):
+    # Inicializa o assistente Baymax
+    page.title = "Assistente Baymax"
+    page.vertical_alignment = ft.MainAxisAlignment.START
+    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+    page.window_width = 600
+    page.window_height = 600
+    page.theme_mode = ft.ThemeMode.LIGHT
+    page.bgcolor = ft.colors.WHITE
+    page.fonts = {
+        "Roboto": "https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap",
+    }
+    app = Inicial(page)  # Instancia o assistente
+    page.go("/")  # Inicia na página inicial
+
+
+ft.app(target=main)
