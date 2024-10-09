@@ -2,7 +2,9 @@ import flet as ft
 import google.generativeai as genai
 import pyttsx3  # Biblioteca para transformar texto em fala
 import threading
+import time
 import asyncio
+import speech_recognition as sr
 import os
 
 
@@ -11,8 +13,13 @@ class Inicial:
         self.page = page
         self.model = self.initialize_model()
         self.chat = self.model.start_chat(history=[])
+        self.recent_messages = []  # Inicializa a lista de mensagens recentes
+        self.build_chat_view()  # Chama a construção da interface
 
         # Instância do TTS em nível de classe
+        self.lock = threading.Lock()  # Adiciona um lock para a fala
+        self.speech_enabled = False  # Inicialize a variável para controle da fala
+        self.typing_message = None  # Para gerenciar a mensagem de "Baymax está digitando"
         self.tts_engine = pyttsx3.init()
         self.speech_enabled = True  # Variável para controlar se a fala está ativada
         if not self.set_voice():
@@ -24,16 +31,19 @@ class Inicial:
 
         self.loading_screen()  # Exibe a tela de carregamento
 
+        self.conversation_history = []  # Lista para armazenar histórico de conversas
+
     def loading_screen(self):
         """Exibe a tela de carregamento."""
-        image_path = "C:/Users/daniel.zlima1/PycharmProjects/ProjetoBaymax/v4/app/Imagens/BaymaxOlá.png"
+        self.image_path = "C:/Users/decau/PycharmProjects/ProjetoBaymax/v4/app/Imagens/BaymaxOlá.png"
+
 
         # Verifica se a imagem existe
-        if not os.path.isfile(image_path):
-            print(f"Erro: A imagem '{image_path}' não foi encontrada.")
+        if not os.path.isfile(self.image_path):
+            print(f"Erro: A imagem '{self.image_path}' não foi encontrada.")
             image_content = ft.Text("Imagem não encontrada.", color=ft.colors.RED)  # Mensagem de erro
         else:
-            image_content = ft.Image(src=image_path, width=self.page.width, height=self.page.height,
+            image_content = ft.Image(src=self.image_path, width=self.page.width, height=self.page.height,
                                      fit=ft.ImageFit.CONTAIN)  # Imagem carregada
 
         loading_content = ft.Stack(
@@ -238,6 +248,10 @@ class Inicial:
             "Desativar Voz", on_click=self.toggle_voice, bgcolor=ft.colors.RED, color=ft.colors.WHITE
         )
 
+        # Botão para ativar reconhecimento de voz
+        self.mic_button = ft.ElevatedButton("Falar", on_click=self.start_voice_recognition, bgcolor=ft.colors.BLUE,
+                                            color=ft.colors.WHITE)
+
         self.page.views.append(
             ft.View(
                 "/chatIAFlet",
@@ -247,9 +261,9 @@ class Inicial:
                         self.chat_box,
                         expand=True,
                         padding=10,
-                        bgcolor=ft.colors.GREY,  # Cor de fundo cinza para o container do chat
-                        border_radius=10,  # Adiciona bordas arredondadas
-                        height=self.page.height - 100  # Ajusta a altura do container
+                        bgcolor=ft.colors.GREY,
+                        border_radius=10,
+                        height=self.page.height - 100
                     ),
                     ft.Row(
                         controls=[
@@ -258,11 +272,12 @@ class Inicial:
                                               color=ft.colors.WHITE),
                             ft.ElevatedButton("Limpar Chat", on_click=self.clear_chat, bgcolor=ft.colors.RED,
                                               color=ft.colors.WHITE),
+                            self.mic_button  # Botão de microfone
                         ],
                         alignment=ft.MainAxisAlignment.END,
                     ),
-                    self.voice_button,  # Adiciona o botão de voz
-                    self.build_back_button(),  # Aqui está o erro
+                    self.voice_button,
+                    self.build_back_button(),
                 ],
             )
         )
@@ -271,42 +286,52 @@ class Inicial:
     def toggle_voice(self, e):
         """Ativa ou desativa a fala."""
         self.speech_enabled = not self.speech_enabled
-        self.voice_button.text = "Ativar Voz" if not self.speech_enabled else "Desativar Voz"  # Atualiza o texto do botão
-
-        if not self.speech_enabled:
-            # Para a fala se estiver desativando
-            self.tts_engine.stop()  # Para qualquer fala em andamento
-        else:
-            # Se a voz estiver ativando e a resposta já foi gerada, fala novamente
-            if hasattr(self, 'last_response_text'):
-                threading.Thread(target=self.speak, args=(self.last_response_text,)).start()  # Fala a resposta anterior
-
-        # Atualiza a página para refletir a mudança sem limpar o chat
+        self.voice_button.text = "Ativar Voz" if not self.speech_enabled else "Desativar Voz"
         self.page.update()
 
-    def clear_chat_content(self):
-        """Limpa o conteúdo do chat."""
-        if hasattr(self, 'chat_box'):
-            self.chat_box.controls.clear()  # Limpa os controles de chat
-        else:
-            print("chat_box não foi inicializado.")  # Debugging
+    def start_voice_recognition(self, e):
+        """Inicia o reconhecimento de voz em uma thread separada."""
+        threading.Thread(target=self.recognize_speech).start()
+
+    def recognize_speech(self):
+        """Reconhece a fala e envia como mensagem."""
+        recognizer = sr.Recognizer()
+        with sr.Microphone() as source:
+            print("Ajustando o nível de ruído... Por favor, fale agora.")
+            recognizer.adjust_for_ambient_noise(source)
+            try:
+                audio = recognizer.listen(source, timeout=5)
+                texto = recognizer.recognize_google(audio, language='pt-BR')
+                print(f"Você disse: {texto}")
+                self.message_input.value = texto
+                self.send_message(None)  # Chama o método de envio de mensagem
+            except sr.UnknownValueError:
+                print("Não consegui entender o que você disse.")
+            except sr.RequestError as e:
+                print(f"Erro no serviço de reconhecimento de fala: {e}")
+            except Exception as e:
+                print(f"Ocorreu um erro: {e}")
 
     def send_message(self, e):
         texto = self.message_input.value.strip()
         if texto.lower() == "sair":
-            self.page.go("/")  # Volta para a página principal
+            self.page.go("/")
             return
 
         if not texto:
             return
 
-        if getattr(self, 'processing_message', False):  # Verifica se já está processando uma mensagem
+        if getattr(self, 'processing_message', False):
             return
 
-        self.processing_message = True  # Define que está processando uma mensagem
+        self.processing_message = True
+
+        # Limpa a mensagem de "digitando" se estiver presente
+        if self.typing_message:
+            self.chat_box.controls.remove(self.typing_message)
+            self.typing_message = None
 
         try:
-            # Adiciona a mensagem do usuário em um balão de fala
             user_bubble = ft.Container(
                 content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.WHITE),
                 bgcolor=ft.colors.GREEN_400,
@@ -315,58 +340,23 @@ class Inicial:
                 alignment=ft.alignment.center_right,
                 margin=ft.margin.only(bottom=5)
             )
-            # Envolve o balão de fala em um container cinza
-            user_container = ft.Container(
-                content=user_bubble,
-                bgcolor=ft.colors.GREY,  # Cor de fundo cinza
-                padding=10,  # Espaço interno
-                border_radius=10  # Bordas arredondadas
-            )
-            self.chat_box.controls.append(user_container)
+            self.chat_box.controls.append(user_bubble)
 
-            # Envia a mensagem e recebe a resposta
-            response = self.chat.send_message(texto)
-
-            # Verifica se a resposta é válida
-            if hasattr(response, 'text'):
-                resposta_texto = response.text
-                self.last_response_text = resposta_texto  # Armazena a última resposta para fala
-            else:
-                resposta_texto = "Desculpe, não consegui entender."
-                self.last_response_text = resposta_texto  # Armazena a última resposta para fala
-
-            # Adiciona a resposta do Baymax em um balão de fala
-            baymax_bubble = ft.Container(
-                content=ft.Text(f"Baymax: {resposta_texto}", size=16, color=ft.colors.WHITE),
-                bgcolor=ft.colors.RED,
+            # Adiciona a mensagem de "Baymax está digitando"
+            self.typing_message = ft.Container(
+                content=ft.Text("Baymax está digitando...", size=16, color=ft.colors.YELLOW),
+                bgcolor=ft.colors.GREY,
                 padding=10,
                 border_radius=10,
                 alignment=ft.alignment.center_left,
                 margin=ft.margin.only(bottom=5)
             )
-            # Envolve o balão de fala em um container cinza
-            baymax_container = ft.Container(
-                content=baymax_bubble,
-                bgcolor=ft.colors.GREY,  # Cor de fundo cinza
-                padding=10,  # Espaço interno
-                border_radius=10  # Bordas arredondadas
-            )
-            self.chat_box.controls.append(baymax_container)
+            self.chat_box.controls.append(self.typing_message)
+            self.page.update()  # Atualiza a interface para mostrar a mensagem "digitando"
 
-            # Limpa o campo de entrada
-            self.message_input.value = ""
+            threading.Thread(target=self.handle_send_message, args=(texto,)).start()  # Envia em uma nova thread
 
-            # Atualiza a página para mostrar as mensagens
-            self.page.update()
-
-            # Faz o Baymax "falar" a resposta de forma assíncrona, se a fala estiver ativada
-            if self.speech_enabled:
-                threading.Thread(target=self.speak, args=(resposta_texto,)).start()
-
-            # Rolagem para a última mensagem
-            self.chat_box.scroll_to(self.chat_box.controls[-1])
         except Exception as e:
-            # Adiciona um erro à caixa de chat se algo falhar
             error_bubble = ft.Container(
                 content=ft.Text(f"Erro: {str(e)}", size=16, color=ft.colors.WHITE),
                 bgcolor=ft.colors.RED_800,
@@ -377,22 +367,73 @@ class Inicial:
             self.chat_box.controls.append(error_bubble)
             self.page.update()
         finally:
-            self.processing_message = False  # Libera a flag de processamento
+            self.processing_message = False
+
+    def handle_send_message(self, texto):
+        """Processa o envio da mensagem em uma nova thread."""
+        response = self.chat.send_message(texto)
+
+        # Adiciona a interação ao histórico
+        self.conversation_history.append({"user": texto, "baymax": response.text})
+
+        # Verifica se a resposta é válida
+        if hasattr(response, 'text'):
+            resposta_texto = response.text
+        else:
+            resposta_texto = "Desculpe, não consegui entender."
+
+        # Remove a mensagem de "digitando"
+        if self.typing_message:
+            self.chat_box.controls.remove(self.typing_message)
+            self.typing_message = None
+
+        # Adiciona a nova mensagem do Baymax ao chat
+        baymax_bubble = ft.Container(
+            content=ft.Text(f"Baymax: {resposta_texto}", size=16, color=ft.colors.WHITE),
+            bgcolor=ft.colors.RED,
+            padding=10,
+            border_radius=10,
+            alignment=ft.alignment.center_left,
+            margin=ft.margin.only(bottom=5)
+        )
+        self.chat_box.controls.append(baymax_bubble)
+
+        self.message_input.value = ""
+        self.page.update()
+
+        # Adicione um print para depuração
+        print(f"Baymax vai falar: {resposta_texto}")
+
+        # Interrompe a fala anterior e fala a nova mensagem
+        if self.speech_enabled:
+            self.speak(resposta_texto)
+
+        # Atraso para garantir que a interface seja atualizada antes do scroll
+        threading.Timer(0.1, lambda: self.chat_box.scroll_to(self.chat_box.controls[-1])).start()
 
     def speak(self, text):
         """Faz o Baymax falar o texto fornecido."""
         try:
             if self.speech_enabled:
-                if hasattr(self, 'tts_engine'):
+                with self.lock:  # Garante que só uma chamada possa executar a fala
                     self.tts_engine.say(text)
-                    self.tts_engine.runAndWait()  # Aguarda até que a fala termine
+                    self.tts_engine.runAndWait()
+                    print(f"Baymax falou: {text}")
         except Exception as e:
             print(f"Erro ao falar: {str(e)}")
 
+    def clear_chat_content(self):
+        """Limpa o conteúdo do chat."""
+        if hasattr(self, 'chat_box'):
+            self.chat_box.controls.clear()
+            self.page.update()
+        else:
+            print("chat_box não foi inicializado.")
+
     def clear_chat(self, e):
         """Limpa o histórico de chat."""
-        self.chat_box.controls.clear()  # Limpa os controles de chat
-        self.page.update()  # Atualiza a página
+        self.chat_box.controls.clear()
+        self.page.update()
 
     def build_about_view(self):
         """Constrói a view 'Sobre Nós'."""
@@ -444,8 +485,8 @@ def main(page: ft.Page):
     page.title = "Baymax - Seu Assistente Virtual"
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
     page.window.width = 800  # Largura da janela
-    page.window.height = 600  # Altura da janela
-    page.bgcolor = ft.colors.GREY_800  # Cor de fundo
+    page.window.height = 800  # Altura da janela
+    page.bgcolor = ft.colors.WHITE  # Cor de fundo
 
     inicial = Inicial(page)  # Instancia a classe Inicial
 

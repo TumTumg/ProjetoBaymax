@@ -1,6 +1,6 @@
 import flet as ft
 import google.generativeai as genai
-from styles import button_style, page_style  # Importando os estilos
+
 
 def main(page: ft.Page):
     # Configuração da API do Gemini
