@@ -1,42 +1,41 @@
 import flet as ft
 import google.generativeai as genai
-import pyttsx3  # Biblioteca para transformar texto em fala
+import pyttsx3
 import threading
-import time
-import asyncio
-import speech_recognition as sr
 import os
-
+import speech_recognition as sr
+from db import Database
 
 class Inicial:
     def __init__(self, page):
         self.page = page
-        self.model = self.initialize_model()
+        self.model = self.initializeModel()
         self.chat = self.model.start_chat(history=[])
-        self.recent_messages = []  # Inicializa a lista de mensagens recentes
-        self.build_chat_view()  # Chama a construção da interface
-
-        # Instância do TTS em nível de classe
-        self.lock = threading.Lock()  # Adiciona um lock para a fala
-        self.speech_enabled = False  # Inicialize a variável para controle da fala
-        self.typing_message = None  # Para gerenciar a mensagem de "Baymax está digitando"
+        self.recent_messages = []
+        self.buildChatView()
+        self.chat_box = ft.Column()
+        self.lock = threading.Lock()
+        self.typing_message = None
         self.tts_engine = pyttsx3.init()
-        self.speech_enabled = True  # Variável para controlar se a fala está ativada
-        if not self.set_voice():
+        self.speech_enabled = True
+        if not self.setVoice():
             print("Nenhuma voz masculina encontrada, utilizando a voz padrão.")
 
-        self.page.on_route_change = self.route_change  # Define o callback de mudança de rota
+        self.page.on_route_change = self.routeChange
+        self.show_notification = True
+        self.loadingScreen()
+        self.conversation_history = []  # Inicializa a lista de histórico de conversas
+        self.db = Database(user='root', password='')  # Conexão com o banco de dados
+        self.db.create_connection()  # Tenta estabelecer a conexão
+        # Aqui você pode adicionar mais lógica do seu aplicativo
 
-        self.show_notification = True  # Variável de controle para mostrar a notificação
+    def close(self):
+        self.db.close_connection()
 
-        self.loading_screen()  # Exibe a tela de carregamento
 
-        self.conversation_history = []  # Lista para armazenar histórico de conversas
-
-    def loading_screen(self):
+    def loadingScreen(self):
         """Exibe a tela de carregamento."""
         self.image_path = "C:/Users/decau/PycharmProjects/ProjetoBaymax/v4/app/Imagens/BaymaxOlá.png"
-
 
         # Verifica se a imagem existe
         if not os.path.isfile(self.image_path):
@@ -85,15 +84,104 @@ class Inicial:
         )
         self.page.update()
 
-        # Aguarda 5 segundos antes de carregar a página inicial
-        threading.Thread(target=self.delay_loading).start()
+        # Aguarda 5 segundos antes de carregar a tela de login
+        threading.Thread(target=self.delayLoading).start()
 
-    def delay_loading(self):
-        """Aguarda um tempo antes de carregar a página inicial."""
+    def delayLoading(self):
+        """Aguarda um tempo antes de carregar a tela de login."""
         threading.Event().wait(2)  # Aguardando 2 segundos
-        self.page.go("/")  # Carrega a página inicial
+        self.buildLoginView()  # Carrega a tela de login
 
-    def set_voice(self):
+    def buildLoginView(self):
+        """Constrói a tela de login."""
+        self.page.views.clear()  # Limpa as views atuais
+        self.page.views.append(
+            ft.View(
+                "/login",
+                [
+                    ft.AppBar(title=ft.Text("Login"), bgcolor=ft.colors.SURFACE_VARIANT),
+                    ft.Column(
+                        controls=[
+                            ft.TextField(label="Usuário", width=300),
+                            ft.TextField(label="Senha", width=300, password=True),
+                            ft.ElevatedButton("Entrar", on_click=self.handleLogin, bgcolor=ft.colors.BLUE),
+                            ft.TextButton("Cadastrar", on_click=self.buildSignupView, style=ft.ButtonStyle(
+                                color=ft.colors.WHITE,
+                                bgcolor=ft.colors.GREEN_300,  # Cor de fundo
+                            )),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=10,
+                    ),
+                ],
+            )
+        )
+        self.page.update()
+
+    def buildSignupView(self, e):
+        """Constrói a tela de cadastro."""
+        self.page.views.clear()  # Limpa as views atuais
+        self.page.views.append(
+            ft.View(
+                "/signup",
+                [
+                    ft.AppBar(title=ft.Text("Cadastrar"), bgcolor=ft.colors.SURFACE_VARIANT),
+                    ft.Column(
+                        controls=[
+                            ft.TextField(label="Usuário", width=300),  # index 0
+                            ft.TextField(label="Senha", width=300, password=True),  # index 1
+                            ft.TextField(label="Confirmação da Senha", width=300, password=True),  # index 2
+                            ft.ElevatedButton("Cadastrar", on_click=self.handleSignup, bgcolor=ft.colors.GREEN),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=10,
+                    ),
+                ],
+            )
+        )
+        self.page.update()
+
+    def handleSignup(self, e):
+        """Lida com o cadastro do usuário."""
+        # Acessando a última view e pegando a coluna de controles
+        signup_view = self.page.views[-1]
+        controls = signup_view.controls[1].controls  # Acesse os controles dentro da coluna
+
+        username = controls[0].value  # Usuário (TextField)
+        password = controls[1].value  # Senha (TextField)
+        confirm_password = controls[2].value  # Confirmação da Senha (TextField)
+
+        # Lógica simples para verificação
+        if password == confirm_password:
+            # Aqui você pode adicionar lógica para armazenar o novo usuário
+            print(f"Usuário {username} cadastrado com sucesso!")  # Exemplo de saída no console
+            self.buildLoginView()  # Retorna à tela de login após cadastro
+        else:
+            ft.alert("As senhas não coincidem. Tente novamente.")  # Notificação de erro
+
+    def handleLogin(self, e):
+        """Lida com a autenticação do usuário."""
+        username = self.page.views[-1].controls[1].controls[0].value  # Usuário
+        password = self.page.views[-1].controls[1].controls[1].value  # Senha
+
+        # Exemplo simples de autenticação (substitua pela sua lógica real)
+        if username == "admin" and password == "senha123":  # Altere para a lógica de autenticação real
+            self.page.go("/")  # Navega para a página inicial se autenticado
+        else:
+            # Cria um alerta com um botão para fechar
+            alert_dialog = ft.AlertDialog(
+                title=ft.Text("Erro de Autenticação"),
+                content=ft.Text("Usuário ou senha incorretos. Tente novamente."),
+                actions=[
+                    ft.TextButton("OK", on_click=lambda e: alert_dialog.close())
+                ],
+            )
+
+            self.page.dialog = alert_dialog  # Atribui o diálogo à página
+            alert_dialog.open()  # Abre o diálogo
+            self.page.update()  # Atualiza a página
+
+    def setVoice(self):
         """Configura uma voz masculina para o motor de texto para fala (TTS)."""
         voices = self.tts_engine.getProperty('voices')
         for voice in voices:
@@ -102,7 +190,7 @@ class Inicial:
                 return True
         return False  # Retorna False se não encontrou uma voz masculina
 
-    def initialize_model(self):
+    def initializeModel(self):
         """Configura o modelo de IA com a API do Gemini."""
         genai.configure(api_key="AIzaSyCk-u-JNCWlX0-G5omIdhictzVNW8bEZbM")  # Substitua pela sua chave API real
 
@@ -131,26 +219,26 @@ class Inicial:
         )
         return model
 
-    def route_change(self, route_event_or_str):
+    def routeChange(self, route_event_or_str):
         """Atualiza a view de acordo com a rota."""
         self.page.views.clear()  # Limpa as views atuais
         route = route_event_or_str.route if hasattr(route_event_or_str, 'route') else route_event_or_str
         views = {
-            "/": self.build_home_view,
-            "/chatIAFlet": self.build_chat_view,
-            "/sobre": self.build_about_view,
-            "/contato": self.build_contact_view,
+            "/": self.buildHomeView,
+            "/chatIAFlet": self.buildChatView,
+            "/sobre": self.buildAboutView,
+            "/contato": self.buildContactView,
         }
-        view_function = views.get(route, self.build_error_view)
+        view_function = views.get(route, self.buildErrorView)
         view_function()  # Chama a função de view correspondente
 
         # Limpar o conteúdo do chat ao voltar para a página inicial
         if route == "/":
-            self.clear_chat_content()  # Limpa o conteúdo do chat
+            self.clearChatContent()  # Limpa o conteúdo do chat
 
         self.page.update()  # Atualiza a página
 
-    def build_home_view(self):
+    def buildHomeView(self):
         """Constrói a página inicial."""
         self.page.views.append(
             ft.View(
@@ -164,7 +252,7 @@ class Inicial:
                             ft.NavigationBarDestination(icon=ft.icons.CONTACT_MAIL, label="Contato"),
                             ft.NavigationBarDestination(icon=ft.icons.EXIT_TO_APP, label="Sair"),
                         ],
-                        on_change=self.handle_navigation,
+                        on_change=self.handleNavigation,
                     ),
                     ft.Text("Bem-vindo ao Assistente Baymax!", size=24),
                 ],
@@ -173,9 +261,9 @@ class Inicial:
         self.page.update()  # Atualiza a página
 
         if self.show_notification:
-            self.show_welcome_notification("Usuário")  # Exibe notificação de boas-vindas
+            self.showWelcomeNotification("Usuário")  # Exibe notificação de boas-vindas
 
-    def show_welcome_notification(self, usuario):
+    def showWelcomeNotification(self, usuario):
         """Exibe uma notificação de boas-vindas ao usuário."""
         notification_text = (
             f"Bem-vindo {usuario}!\n"
@@ -200,8 +288,8 @@ class Inicial:
             title=ft.Text("Bem-vindo!"),
             content=ft.Text(notification_text),
             actions=[
-                ft.Checkbox(label="Não mostrar novamente", on_change=self.no_show_again),
-                ft.ElevatedButton("Fechar", on_click=self.close_dialog),
+                ft.Checkbox(label="Não mostrar novamente", on_change=self.noShowAgain),
+                ft.ElevatedButton("Fechar", on_click=self.closeDialog),
             ],
             actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
@@ -211,23 +299,23 @@ class Inicial:
         self.dialog.open = True
         self.page.update()  # Atualiza a página para mostrar o novo diálogo
 
-    def close_dialog(self, e):
+    def closeDialog(self, e):
         """Fecha o diálogo de boas-vindas."""
         if hasattr(self, 'dialog'):
             self.dialog.open = False  # Fecha o diálogo
             self.page.overlay.remove(self.dialog)  # Remove o diálogo da sobreposição
             self.page.update()  # Atualiza a página para refletir a mudança
 
-    def no_show_again(self, e):
+    def noShowAgain(self, e):
         """Ação para o checkbox 'Não mostrar novamente'."""
         self.show_notification = not e.control.value  # Atualiza a variável com base no estado do checkbox
 
-    def hide_notification(self):
+    def hideNotification(self):
         """Oculta completamente a notificação da tela."""
         # Aqui você pode adicionar a lógica para ocultar outros elementos da UI, se necessário
         self.show_notification = False  # Ou outra lógica para controlar a exibição
 
-    def handle_navigation(self, e):
+    def handleNavigation(self, e):
         """Navega entre as diferentes páginas do aplicativo."""
         if e.control.selected_index == 0:
             self.page.go("/chatIAFlet")  # Navega para a página de chat IA
@@ -238,18 +326,18 @@ class Inicial:
         elif e.control.selected_index == 3:
             self.page.go("/")  # Retorna para a página principal
 
-    def build_chat_view(self):
+    def buildChatView(self):
         """Constrói a interface do chat com balões de fala."""
         self.chat_box = ft.Column(scroll="auto", expand=True, alignment=ft.MainAxisAlignment.START, spacing=10)
-        self.message_input = ft.TextField(hint_text="Digite sua mensagem...", expand=True, on_submit=self.send_message)
+        self.message_input = ft.TextField(hint_text="Digite sua mensagem...", expand=True, on_submit=self.sendMessage)
 
         # Botão para ativar/desativar a fala
         self.voice_button = ft.ElevatedButton(
-            "Desativar Voz", on_click=self.toggle_voice, bgcolor=ft.colors.RED, color=ft.colors.WHITE
+            "Desativar Voz", on_click=self.toggleVoice, bgcolor=ft.colors.RED, color=ft.colors.WHITE
         )
 
         # Botão para ativar reconhecimento de voz
-        self.mic_button = ft.ElevatedButton("Falar", on_click=self.start_voice_recognition, bgcolor=ft.colors.BLUE,
+        self.mic_button = ft.ElevatedButton("Falar", on_click=self.startVoiceRecognition, bgcolor=ft.colors.BLUE,
                                             color=ft.colors.WHITE)
 
         self.page.views.append(
@@ -268,51 +356,58 @@ class Inicial:
                     ft.Row(
                         controls=[
                             self.message_input,
-                            ft.ElevatedButton("Enviar", on_click=self.send_message, bgcolor=ft.colors.RED,
+                            ft.ElevatedButton("Enviar", on_click=self.sendMessage, bgcolor=ft.colors.RED,
                                               color=ft.colors.WHITE),
-                            ft.ElevatedButton("Limpar Chat", on_click=self.clear_chat, bgcolor=ft.colors.RED,
+                            ft.ElevatedButton("Limpar Chat", on_click=self.clearChat, bgcolor=ft.colors.RED,
                                               color=ft.colors.WHITE),
                             self.mic_button  # Botão de microfone
                         ],
                         alignment=ft.MainAxisAlignment.END,
                     ),
                     self.voice_button,
-                    self.build_back_button(),
+                    self.buildBackButton(),
                 ],
             )
         )
         self.page.update()
 
-    def toggle_voice(self, e):
+    def toggleVoice(self, e):
         """Ativa ou desativa a fala."""
         self.speech_enabled = not self.speech_enabled
         self.voice_button.text = "Ativar Voz" if not self.speech_enabled else "Desativar Voz"
         self.page.update()
 
-    def start_voice_recognition(self, e):
+    def startVoiceRecognition(self, e):
         """Inicia o reconhecimento de voz em uma thread separada."""
-        threading.Thread(target=self.recognize_speech).start()
+        threading.Thread(target=self.recognizeSpeech).start()
 
-    def recognize_speech(self):
+    def startVoiceRecognition(self, e):
+        """Inicia o reconhecimento de voz em uma thread separada."""
+        threading.Thread(target=self.recognizeSpeech).start()
+
+    def recognizeSpeech(self):
         """Reconhece a fala e envia como mensagem."""
         recognizer = sr.Recognizer()
-        with sr.Microphone() as source:
-            print("Ajustando o nível de ruído... Por favor, fale agora.")
-            recognizer.adjust_for_ambient_noise(source)
-            try:
-                audio = recognizer.listen(source, timeout=5)
+        mic = sr.Microphone()  # Certifique-se de que o microfone está ativo e funcionando
+
+        # Verificação de disponibilidade do microfone
+        try:
+            with mic as source:
+                print("Ajustando o nível de ruído... Por favor, fale agora.")
+                recognizer.adjust_for_ambient_noise(source)
+                audio = recognizer.listen(source, timeout=5)  # Escuta até 5 segundos
                 texto = recognizer.recognize_google(audio, language='pt-BR')
                 print(f"Você disse: {texto}")
                 self.message_input.value = texto
-                self.send_message(None)  # Chama o método de envio de mensagem
-            except sr.UnknownValueError:
-                print("Não consegui entender o que você disse.")
-            except sr.RequestError as e:
-                print(f"Erro no serviço de reconhecimento de fala: {e}")
-            except Exception as e:
-                print(f"Ocorreu um erro: {e}")
+                self.sendMessage(None)  # Chama o método de envio de mensagem
+        except sr.UnknownValueError:
+            print("Não consegui entender o que você disse.")
+        except sr.RequestError as e:
+            print(f"Erro no serviço de reconhecimento de fala: {e}")
+        except Exception as e:
+            print(f"Ocorreu um erro: {e}")
 
-    def send_message(self, e):
+    def sendMessage(self, e):
         texto = self.message_input.value.strip()
         if texto.lower() == "sair":
             self.page.go("/")
@@ -326,12 +421,8 @@ class Inicial:
 
         self.processing_message = True
 
-        # Limpa a mensagem de "digitando" se estiver presente
-        if self.typing_message:
-            self.chat_box.controls.remove(self.typing_message)
-            self.typing_message = None
-
         try:
+            # Enviar a mensagem
             user_bubble = ft.Container(
                 content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.WHITE),
                 bgcolor=ft.colors.GREEN_400,
@@ -342,7 +433,7 @@ class Inicial:
             )
             self.chat_box.controls.append(user_bubble)
 
-            # Adiciona a mensagem de "Baymax está digitando"
+            # Simula que Baymax está digitando
             self.typing_message = ft.Container(
                 content=ft.Text("Baymax está digitando...", size=16, color=ft.colors.YELLOW),
                 bgcolor=ft.colors.GREY,
@@ -352,31 +443,24 @@ class Inicial:
                 margin=ft.margin.only(bottom=5)
             )
             self.chat_box.controls.append(self.typing_message)
-            self.page.update()  # Atualiza a interface para mostrar a mensagem "digitando"
+            self.page.update()
 
-            threading.Thread(target=self.handle_send_message, args=(texto,)).start()  # Envia em uma nova thread
+            threading.Thread(target=self.handleSendMessage, args=(texto,)).start()  # Envia em uma nova thread
 
         except Exception as e:
-            error_bubble = ft.Container(
-                content=ft.Text(f"Erro: {str(e)}", size=16, color=ft.colors.WHITE),
-                bgcolor=ft.colors.RED_800,
-                padding=10,
-                border_radius=10,
-                margin=ft.margin.only(bottom=5)
-            )
-            self.chat_box.controls.append(error_bubble)
-            self.page.update()
+            print(f"Erro ao enviar mensagem: {e}")
         finally:
             self.processing_message = False
 
-    def handle_send_message(self, texto):
+
+
+    def handleSendMessage(self, texto):
         """Processa o envio da mensagem em uma nova thread."""
         response = self.chat.send_message(texto)
 
         # Adiciona a interação ao histórico
         self.conversation_history.append({"user": texto, "baymax": response.text})
 
-        # Verifica se a resposta é válida
         if hasattr(response, 'text'):
             resposta_texto = response.text
         else:
@@ -401,28 +485,27 @@ class Inicial:
         self.message_input.value = ""
         self.page.update()
 
-        # Adicione um print para depuração
         print(f"Baymax vai falar: {resposta_texto}")
 
-        # Interrompe a fala anterior e fala a nova mensagem
-        if self.speech_enabled:
-            self.speak(resposta_texto)
-
-        # Atraso para garantir que a interface seja atualizada antes do scroll
-        threading.Timer(0.1, lambda: self.chat_box.scroll_to(self.chat_box.controls[-1])).start()
+        # Adiciona a fala à fila
+        self.speech_queue.append(resposta_texto)
+        self.speak_next()  # Inicia a fala se não estiver falando
 
     def speak(self, text):
         """Faz o Baymax falar o texto fornecido."""
         try:
             if self.speech_enabled:
+                print(f"Iniciando fala: {text}")
                 with self.lock:  # Garante que só uma chamada possa executar a fala
                     self.tts_engine.say(text)
                     self.tts_engine.runAndWait()
                     print(f"Baymax falou: {text}")
+            else:
+                print("Voz desativada, não falando.")
         except Exception as e:
             print(f"Erro ao falar: {str(e)}")
 
-    def clear_chat_content(self):
+    def clearChatContent(self):
         """Limpa o conteúdo do chat."""
         if hasattr(self, 'chat_box'):
             self.chat_box.controls.clear()
@@ -430,12 +513,12 @@ class Inicial:
         else:
             print("chat_box não foi inicializado.")
 
-    def clear_chat(self, e):
+    def clearChat(self, e):
         """Limpa o histórico de chat."""
         self.chat_box.controls.clear()
         self.page.update()
 
-    def build_about_view(self):
+    def buildAboutView(self):
         """Constrói a view 'Sobre Nós'."""
         self.page.views.append(
             ft.View(
@@ -447,7 +530,7 @@ class Inicial:
             )
         )
 
-    def build_contact_view(self):
+    def buildContactView(self):
         """Constrói a view 'Contato'."""
         self.page.views.append(
             ft.View(
@@ -459,7 +542,7 @@ class Inicial:
             )
         )
 
-    def build_back_button(self):
+    def buildBackButton(self):
         """Cria o botão de voltar para a página inicial."""
         return ft.ElevatedButton(
             "Voltar",
@@ -468,7 +551,7 @@ class Inicial:
             color=ft.colors.WHITE,
         )
 
-    def build_error_view(self):
+    def buildErrorView(self):
         """Constrói a view de erro."""
         self.page.views.append(
             ft.View(
@@ -480,16 +563,15 @@ class Inicial:
             )
         )
 
-
 def main(page: ft.Page):
-    page.title = "Baymax - Seu Assistente Virtual"
-    page.vertical_alignment = ft.MainAxisAlignment.CENTER
-    page.window.width = 800  # Largura da janela
-    page.window.height = 800  # Altura da janela
-    page.bgcolor = ft.colors.WHITE  # Cor de fundo
+        page.title = "Baymax - Seu Assistente Virtual"
+        page.vertical_alignment = ft.MainAxisAlignment.CENTER
+        page.window.width = 800
+        page.window.height = 800
+        page.bgcolor = ft.colors.WHITE
 
-    inicial = Inicial(page)  # Instancia a classe Inicial
-
+        inicial = Inicial(page)
 
 if __name__ == "__main__":
-    ft.app(target=main)
+        ft.app(target=main)
+

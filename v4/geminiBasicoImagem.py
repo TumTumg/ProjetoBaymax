@@ -1,4 +1,4 @@
-import google.generativeai as genai
+ import google.generativeai as genai
 import PIL.Image
 from pyfirmata import Arduino, util
 import time
