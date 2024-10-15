@@ -1,0 +1,28 @@
+-- Criação do banco de dados 'baymax'
+CREATE DATABASE baymax;
+
+-- Uso do banco de dados 'baymax'
+USE baymax;
+
+-- Criação da tabela 'usuario'
+CREATE TABLE usuario (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    senha VARCHAR(255) NOT NULL
+);
+
+SELECT * FROM usuario;
+
+CREATE TABLE usuario (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    cpf VARCHAR(14) NOT NULL UNIQUE,
+    nomeCompleto VARCHAR(100) NOT NULL,
+    telefone VARCHAR(15),
+    senha VARCHAR(255) NOT NULL
+);
+
+
+
+
+

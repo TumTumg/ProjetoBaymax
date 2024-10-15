@@ -4,97 +4,197 @@ import pyttsx3
 import threading
 import os
 import speech_recognition as sr
-from db import Database
+import mysql.connector
+from mysql.connector import Error
+
+class Database:
+    def __init__(self, host='localhost', user='root', password='', database='baymax'):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.database = database
+        self.connection = None
+
+    def createConnection(self):
+        """Cria uma conexão com o banco de dados MySQL."""
+        try:
+            self.connection = mysql.connector.connect(
+                host=self.host,
+                user=self.user,
+                password=self.password,
+                database=self.database
+            )
+            if self.connection.is_connected():
+                print(f"Conexão com o banco de dados '{self.database}' foi bem-sucedida.")
+        except Error as e:
+            print(f"Erro ao conectar ao MySQL: {e}")
+            self.connection = None
+
+    def closeConnection(self):
+        """Fecha a conexão com o banco de dados."""
+        if self.connection and self.connection.is_connected():
+            self.connection.close()
+            print("Conexão com o banco de dados fechada.")
+
+    def createUser(self, email, cpf, nomeCompleto, telefone, senha):
+        """Insere um novo usuário no banco de dados."""
+        try:
+            cursor = self.connection.cursor()
+            comando = 'INSERT INTO usuario (email, cpf, nomeCompleto, telefone, senha) VALUES (%s, %s, %s, %s, %s)'
+            cursor.execute(comando, (email, cpf, nomeCompleto, telefone, senha))
+            self.connection.commit()
+            print(f"Usuário '{nomeCompleto}' criado com sucesso.")
+        except Error as e:
+            print(f"Erro ao criar usuário: {e}")
+        finally:
+            cursor.close()
+
+    def readUserByEmail(self, email):
+        """Lê um usuário do banco de dados pelo email."""
+        try:
+            cursor = self.connection.cursor()
+            comando = 'SELECT * FROM usuario WHERE email = %s'
+            cursor.execute(comando, (email,))
+            resultado = cursor.fetchone()
+            return resultado
+        except Error as e:
+            print(f"Erro ao ler usuário: {e}")
+            return None
+        finally:
+            cursor.close()
+
+    def updateUser(self, emailAntigo, emailNovo, senhaNova, nomeCompletoNovo, telefoneNovo):
+        """Atualiza um usuário existente no banco de dados."""
+        try:
+            cursor = self.connection.cursor()
+            comando = 'UPDATE usuario SET email = %s, senha = %s, nomeCompleto = %s, telefone = %s WHERE email = %s'
+            cursor.execute(comando, (emailNovo, senhaNova, nomeCompletoNovo, telefoneNovo, emailAntigo))
+            self.connection.commit()
+            print(f"Usuário '{emailAntigo}' atualizado para '{emailNovo}'.")
+        except Error as e:
+            print(f"Erro ao atualizar usuário: {e}")
+        finally:
+            cursor.close()
+
+    def deleteUser(self, email):
+        """Deleta um usuário do banco de dados."""
+        try:
+            cursor = self.connection.cursor()
+            comando = 'DELETE FROM usuario WHERE email = %s'
+            cursor.execute(comando, (email,))
+            self.connection.commit()
+            print(f"Usuário '{email}' deletado com sucesso.")
+        except Error as e:
+            print(f"Erro ao deletar usuário: {e}")
+        finally:
+            cursor.close()
 
 class Inicial:
     def __init__(self, page):
         self.page = page
         self.model = self.initializeModel()
         self.chat = self.model.start_chat(history=[])
-        self.recent_messages = []
+        self.recentMessages = []
         self.buildChatView()
+        self.buildHomeView()
         self.chat_box = ft.Column()
         self.lock = threading.Lock()
         self.typing_message = None
         self.tts_engine = pyttsx3.init()
         self.speech_enabled = True
+        self.speech_queue = []  # Aqui está a definição do speechQueue
         if not self.setVoice():
             print("Nenhuma voz masculina encontrada, utilizando a voz padrão.")
 
         self.page.on_route_change = self.routeChange
-        self.show_notification = True
         self.loadingScreen()
-        self.conversation_history = []  # Inicializa a lista de histórico de conversas
+        self.conversation_history = []
         self.db = Database(user='root', password='')  # Conexão com o banco de dados
-        self.db.create_connection()  # Tenta estabelecer a conexão
-        # Aqui você pode adicionar mais lógica do seu aplicativo
+        self.db.createConnection()  # Tenta estabelecer a conexão
 
     def close(self):
-        self.db.close_connection()
-
+        self.db.closeConnection()
 
     def loadingScreen(self):
         """Exibe a tela de carregamento."""
-        self.image_path = "C:/Users/decau/PycharmProjects/ProjetoBaymax/v4/app/Imagens/BaymaxOlá.png"
+        self.imagePath = "C:/Users/decau/PycharmProjects/ProjetoBaymax/v4/app/Imagens/baymax.png"
 
-        # Verifica se a imagem existe
-        if not os.path.isfile(self.image_path):
-            print(f"Erro: A imagem '{self.image_path}' não foi encontrada.")
-            image_content = ft.Text("Imagem não encontrada.", color=ft.colors.RED)  # Mensagem de erro
+        if not os.path.isfile(self.imagePath):
+            print(f"Erro: A imagem '{self.imagePath}' não foi encontrada.")
+            imageContent = ft.Text("Imagem não encontrada.", color=ft.colors.RED)  # Mensagem de erro
         else:
-            image_content = ft.Image(src=self.image_path, width=self.page.width, height=self.page.height,
-                                     fit=ft.ImageFit.CONTAIN)  # Imagem carregada
+            imageContent = ft.Image(src=self.imagePath, width=self.page.width, height=self.page.height,
+                                    fit=ft.ImageFit.CONTAIN)
 
-        loading_content = ft.Stack(
+        loadingContent = ft.Stack(
             [
-                # Camada de fundo da imagem
                 ft.Container(
-                    content=image_content,
-                    alignment=ft.alignment.bottom_right,  # Imagem no canto inferior direito
+                    content=imageContent,
+                    alignment=ft.alignment.bottom_right,
                     expand=True,
                 ),
-                # Texto de "Seu Assistente Baymax"
                 ft.Container(
                     content=ft.Text("Seu Assistente Baymax", size=32, color=ft.colors.WHITE),
-                    alignment=ft.alignment.top_center,  # Centraliza no topo
-                    margin=ft.margin.only(bottom=80),  # Ajusta a margem para distanciar do topo
+                    alignment=ft.alignment.top_center,
+                    margin=ft.margin.only(bottom=80),
                 ),
-                # Texto de "Acesso Antecipado"
                 ft.Container(
                     content=ft.Text("Acesso Antecipado", size=20, color=ft.colors.YELLOW_300),
-                    alignment=ft.alignment.bottom_left,  # Posiciona no canto inferior esquerdo
-                    margin=ft.margin.only(left=20, bottom=20),  # Ajusta a margem para distanciar do canto
+                    alignment=ft.alignment.bottom_left,
+                    margin=ft.margin.only(left=20, bottom=20),
                 ),
             ]
         )
 
-        # Configura a página com a tela de carregamento
         self.page.views.append(
             ft.View(
                 "/loading",
                 [
                     ft.Container(
-                        content=loading_content,
+                        content=loadingContent,
                         bgcolor=ft.colors.RED,
-                        width=self.page.width,
-                        height=self.page.height,
+                        expand=True,  # Faz o fundo vermelho ocupar toda a tela
                     ),
                 ],
             )
         )
         self.page.update()
 
-        # Aguarda 5 segundos antes de carregar a tela de login
         threading.Thread(target=self.delayLoading).start()
 
     def delayLoading(self):
-        """Aguarda um tempo antes de carregar a tela de login."""
-        threading.Event().wait(2)  # Aguardando 2 segundos
-        self.buildLoginView()  # Carrega a tela de login
+        """Aguarda um tempo antes de carregar a tela de boas-vindas."""
+        threading.Event().wait(2)
+        self.buildWelcomeView()  # Chama a nova tela de boas-vindas
 
-    def buildLoginView(self):
+    def buildWelcomeView(self, e=None):
+        """Constrói a tela de boas-vindas."""
+        self.page.views.clear()
+        self.page.views.append(
+            ft.View(
+                "/welcome",
+                [
+                    ft.Container(
+                        content=ft.Image(src=self.imagePath, fit=ft.ImageFit.CONTAIN),
+                        alignment=ft.alignment.top_center,
+                    ),
+                    ft.Text("Novo por aqui?", size=24, color=ft.colors.BLACK),
+                    ft.ElevatedButton("Cadastrar", on_click=self.buildSignupView, bgcolor=ft.colors.GREEN),
+                    ft.Text("Já tem uma conta?"),
+                    ft.ElevatedButton("Entrar", on_click=self.buildLoginView, bgcolor=ft.colors.BLUE),
+                    ft.Container(
+                        content=ft.ElevatedButton("Sair", on_click=self.closeApp, bgcolor=ft.colors.RED),
+                        alignment=ft.alignment.bottom_center,
+                        margin=ft.margin.only(bottom=20),
+                    ),
+                ],
+            )  # Removido o 'alignment' aqui
+        )
+        self.page.update()
+
+    def buildLoginView(self, e):
         """Constrói a tela de login."""
-        self.page.views.clear()  # Limpa as views atuais
+        self.page.views.clear()
         self.page.views.append(
             ft.View(
                 "/login",
@@ -102,12 +202,16 @@ class Inicial:
                     ft.AppBar(title=ft.Text("Login"), bgcolor=ft.colors.SURFACE_VARIANT),
                     ft.Column(
                         controls=[
-                            ft.TextField(label="Usuário", width=300),
+                            ft.TextField(label="Email", width=300),
                             ft.TextField(label="Senha", width=300, password=True),
                             ft.ElevatedButton("Entrar", on_click=self.handleLogin, bgcolor=ft.colors.BLUE),
                             ft.TextButton("Cadastrar", on_click=self.buildSignupView, style=ft.ButtonStyle(
                                 color=ft.colors.WHITE,
-                                bgcolor=ft.colors.GREEN_300,  # Cor de fundo
+                                bgcolor=ft.colors.GREEN_300,
+                            )),
+                            ft.TextButton("Voltar", on_click=self.buildWelcomeView, style=ft.ButtonStyle(
+                                color=ft.colors.WHITE,
+                                bgcolor=ft.colors.GREY_400,
                             )),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -120,7 +224,16 @@ class Inicial:
 
     def buildSignupView(self, e):
         """Constrói a tela de cadastro."""
-        self.page.views.clear()  # Limpa as views atuais
+        self.page.views.clear()
+
+        # Armazene referências para os campos
+        self.email_field = ft.TextField(label="Email", width=300)
+        self.cpf_field = ft.TextField(label="CPF", width=300)
+        self.nome_field = ft.TextField(label="Nome Completo", width=300)
+        self.telefone_field = ft.TextField(label="Telefone", width=300)
+        self.senha_field = ft.TextField(label="Senha", width=300, password=True)
+        self.senha_confirmacao_field = ft.TextField(label="Confirmação da Senha", width=300, password=True)
+
         self.page.views.append(
             ft.View(
                 "/signup",
@@ -128,10 +241,17 @@ class Inicial:
                     ft.AppBar(title=ft.Text("Cadastrar"), bgcolor=ft.colors.SURFACE_VARIANT),
                     ft.Column(
                         controls=[
-                            ft.TextField(label="Usuário", width=300),  # index 0
-                            ft.TextField(label="Senha", width=300, password=True),  # index 1
-                            ft.TextField(label="Confirmação da Senha", width=300, password=True),  # index 2
+                            self.email_field,
+                            self.cpf_field,
+                            self.nome_field,
+                            self.telefone_field,
+                            self.senha_field,
+                            self.senha_confirmacao_field,
                             ft.ElevatedButton("Cadastrar", on_click=self.handleSignup, bgcolor=ft.colors.GREEN),
+                            ft.TextButton("Voltar", on_click=self.buildWelcomeView, style=ft.ButtonStyle(
+                                color=ft.colors.WHITE,
+                                bgcolor=ft.colors.GREY_400,
+                            )),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=10,
@@ -141,54 +261,80 @@ class Inicial:
         )
         self.page.update()
 
+    def closeApp(self, e):  # Adicione o parâmetro `e`
+        """Fecha o aplicativo."""
+        self.db.closeConnection()  # Fecha a conexão com o banco de dados, se necessário
+        os._exit(0)  # Comando para fechar o aplicativo
+
     def handleSignup(self, e):
         """Lida com o cadastro do usuário."""
-        # Acessando a última view e pegando a coluna de controles
-        signup_view = self.page.views[-1]
-        controls = signup_view.controls[1].controls  # Acesse os controles dentro da coluna
+        email = self.email_field.value
+        cpf = self.cpf_field.value
+        nome_completo = self.nome_field.value
+        telefone = self.telefone_field.value
+        senha = self.senha_field.value
+        senha_confirmacao = self.senha_confirmacao_field.value
 
-        username = controls[0].value  # Usuário (TextField)
-        password = controls[1].value  # Senha (TextField)
-        confirm_password = controls[2].value  # Confirmação da Senha (TextField)
-
-        # Lógica simples para verificação
-        if password == confirm_password:
-            # Aqui você pode adicionar lógica para armazenar o novo usuário
-            print(f"Usuário {username} cadastrado com sucesso!")  # Exemplo de saída no console
-            self.buildLoginView()  # Retorna à tela de login após cadastro
+        if senha == senha_confirmacao:
+            self.db.createUser(email, cpf, nome_completo, telefone, senha)  # Chamando o método de cadastro
+            snackbar = ft.SnackBar(ft.Text("Usuário Cadastrado Com Sucesso!"), open=True)
+            self.page.add(snackbar)
+            self.page.update()
+            threading.Timer(3.0, lambda: self.buildLoginView())  # Redireciona para a tela de login após 3 segundos
         else:
-            ft.alert("As senhas não coincidem. Tente novamente.")  # Notificação de erro
+            snackbar = ft.SnackBar(ft.Text("As senhas não correspondem!"), open=True)
+            self.page.add(snackbar)
+            self.page.update()
 
     def handleLogin(self, e):
         """Lida com a autenticação do usuário."""
-        username = self.page.views[-1].controls[1].controls[0].value  # Usuário
-        password = self.page.views[-1].controls[1].controls[1].value  # Senha
+        loginView = self.page.views[-1]
+        controls = loginView.controls[1].controls
+        email = controls[0].value
+        senha = controls[1].value
 
-        # Exemplo simples de autenticação (substitua pela sua lógica real)
-        if username == "admin" and password == "senha123":  # Altere para a lógica de autenticação real
-            self.page.go("/")  # Navega para a página inicial se autenticado
-        else:
-            # Cria um alerta com um botão para fechar
-            alert_dialog = ft.AlertDialog(
-                title=ft.Text("Erro de Autenticação"),
-                content=ft.Text("Usuário ou senha incorretos. Tente novamente."),
-                actions=[
-                    ft.TextButton("OK", on_click=lambda e: alert_dialog.close())
-                ],
-            )
+        try:
+            user = self.db.readUserByEmail(email)
+            if user and user[5] == senha:  # Verifica se o usuário existe e a senha está correta (assumindo que senha é a 5ª coluna)
+                print(f"Usuário '{email}' autenticado com sucesso.")
+                self.page.go("/")  # Navega para a tela principal
+            else:
+                self.showErrorDialog("Email ou senha incorretos.")
+        except Exception as error:
+            print(f"Erro ao autenticar: {error}")
+            self.showErrorDialog("Erro ao autenticar. Tente novamente.")
 
-            self.page.dialog = alert_dialog  # Atribui o diálogo à página
-            alert_dialog.open()  # Abre o diálogo
-            self.page.update()  # Atualiza a página
+    def showErrorDialog(self, message):
+        """Exibe um diálogo de erro."""
+        alertDialog = ft.AlertDialog(
+            title=ft.Text("Erro de Autenticação"),
+            content=ft.Text(message),
+            actions=[
+                ft.TextButton("OK", on_click=lambda e: self.closeDialog(alertDialog))
+            ],
+        )
+        self.page.overlay.append(alertDialog)  # Atualização do método deprecated
+        alertDialog.open()
+        self.page.update()
+
+    def closeDialog(self, dialog):
+        self.page.overlay.remove(dialog)
+        self.page.update()
 
     def setVoice(self):
-        """Configura uma voz masculina para o motor de texto para fala (TTS)."""
-        voices = self.tts_engine.getProperty('voices')
-        for voice in voices:
-            if "male" in voice.name.lower():  # Verifica se a voz é masculina
-                self.tts_engine.setProperty('voice', voice.id)
-                return True
-        return False  # Retorna False se não encontrou uma voz masculina
+        """Define a voz a ser usada pelo motor TTS."""
+        try:
+            voices = self.tts_engine.getProperty('voices')  # Corrigido aqui para usar 'tts_engine'
+            # Tente encontrar uma voz masculina
+            for voice in voices:
+                if "male" in voice.name.lower():
+                    self.tts_engine.setProperty('voice', voice.id)
+                    print(f"Voz definida para: {voice.name}")
+                    return True
+            return False  # Se não encontrou voz masculina
+        except Exception as e:
+            print(f"Erro ao definir a voz: {str(e)}")
+            return False
 
     def initializeModel(self):
         """Configura o modelo de IA com a API do Gemini."""
@@ -260,60 +406,6 @@ class Inicial:
         )
         self.page.update()  # Atualiza a página
 
-        if self.show_notification:
-            self.showWelcomeNotification("Usuário")  # Exibe notificação de boas-vindas
-
-    def showWelcomeNotification(self, usuario):
-        """Exibe uma notificação de boas-vindas ao usuário."""
-        notification_text = (
-            f"Bem-vindo {usuario}!\n"
-            "---Novidades!---\n"
-            "- Apresentamos o chat IA\n"
-            "- Novas Funcionalidades!\n"
-            "- Correção de bugs\n"
-            "- Suporte ao usuário\n"
-            "- Promoção à saúde\n"
-            "- Biblioteca Senac\n"
-            "- Auxílio em eventos\n"
-            "-----//-----\n"
-            "Por que você mesmo não dá uma olhada?"
-        )
-
-        # Limpar qualquer diálogo existente
-        self.page.overlay.clear()
-
-        # Criar o diálogo
-        self.dialog = ft.AlertDialog(
-            modal=False,
-            title=ft.Text("Bem-vindo!"),
-            content=ft.Text(notification_text),
-            actions=[
-                ft.Checkbox(label="Não mostrar novamente", on_change=self.noShowAgain),
-                ft.ElevatedButton("Fechar", on_click=self.closeDialog),
-            ],
-            actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-        )
-
-        # Adiciona o diálogo ao overlay
-        self.page.overlay.append(self.dialog)
-        self.dialog.open = True
-        self.page.update()  # Atualiza a página para mostrar o novo diálogo
-
-    def closeDialog(self, e):
-        """Fecha o diálogo de boas-vindas."""
-        if hasattr(self, 'dialog'):
-            self.dialog.open = False  # Fecha o diálogo
-            self.page.overlay.remove(self.dialog)  # Remove o diálogo da sobreposição
-            self.page.update()  # Atualiza a página para refletir a mudança
-
-    def noShowAgain(self, e):
-        """Ação para o checkbox 'Não mostrar novamente'."""
-        self.show_notification = not e.control.value  # Atualiza a variável com base no estado do checkbox
-
-    def hideNotification(self):
-        """Oculta completamente a notificação da tela."""
-        # Aqui você pode adicionar a lógica para ocultar outros elementos da UI, se necessário
-        self.show_notification = False  # Ou outra lógica para controlar a exibição
 
     def handleNavigation(self, e):
         """Navega entre as diferentes páginas do aplicativo."""
@@ -453,7 +545,6 @@ class Inicial:
             self.processing_message = False
 
 
-
     def handleSendMessage(self, texto):
         """Processa o envio da mensagem em uma nova thread."""
         response = self.chat.send_message(texto)
@@ -504,6 +595,12 @@ class Inicial:
                 print("Voz desativada, não falando.")
         except Exception as e:
             print(f"Erro ao falar: {str(e)}")
+
+    def speak_next(self):
+        """Fala a próxima mensagem da fila, se houver."""
+        if self.speech_queue:
+            text_to_speak = self.speech_queue.pop(0)  # Remove a primeira mensagem da fila
+            self.speak(text_to_speak)  # Faz o Baymax falar
 
     def clearChatContent(self):
         """Limpa o conteúdo do chat."""
