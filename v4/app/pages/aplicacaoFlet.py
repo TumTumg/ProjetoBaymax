@@ -325,12 +325,65 @@ class Inicial:
         self.page.views.clear()
 
         # Armazene referências para os campos
-        self.email_field = ft.TextField(label="Email", width=300)
-        self.cpf_field = ft.TextField(label="CPF", width=300)
-        self.nome_field = ft.TextField(label="Nome Completo", width=300)
-        self.telefone_field = ft.TextField(label="Telefone", width=300)
-        self.senha_field = ft.TextField(label="Senha", width=300, password=True)
-        self.senha_confirmacao_field = ft.TextField(label="Confirmação da Senha", width=300, password=True)
+        self.email_field = ft.TextField(label="Email", width=200)
+        self.cpf_field = ft.TextField(label="CPF", width=200)
+        self.nome_field = ft.TextField(label="Nome Completo", width=200)
+        self.telefone_field = ft.TextField(label="Telefone", width=200)
+        self.senha_field = ft.TextField(label="Senha", width=200, password=True)
+        self.senha_confirmacao_field = ft.TextField(label="Confirmação da Senha", width=200, password=True)
+
+        # Contêiner principal com fundo e bordas
+        signup_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    # Balão de fala para "Preencha os dados abaixo"
+                    ft.Container(
+                        content=ft.Text("Preencha os dados abaixo", size=24, color=ft.colors.BLACK),
+                        padding=10,
+                        bgcolor=ft.colors.WHITE,  # Fundo branco do balão
+                        border=ft.border.all(2, ft.colors.BLACK),
+                        border_radius=10,
+                        alignment=ft.alignment.center,
+                        margin=ft.margin.only(bottom=10),  # Margem abaixo
+                    ),
+                    self.email_field,
+                    self.cpf_field,
+                    self.nome_field,
+                    self.telefone_field,
+                    self.senha_field,
+                    self.senha_confirmacao_field,
+                    ft.ElevatedButton(
+                        "Cadastrar",
+                        on_click=self.handleSignup,
+                        bgcolor=ft.colors.RED_800,  # Cor do botão
+                        style=ft.ButtonStyle(
+                            color=ft.colors.BLACK,
+                            side=ft.BorderSide(3, ft.colors.BLACK),
+                        ),
+                        width=160,  # Largura do botão
+                        height=40,  # Altura do botão
+                    ),
+                    ft.TextButton(
+                        "Voltar",
+                        on_click=self.buildWelcomeView,
+                        style=ft.ButtonStyle(
+                            color=ft.colors.WHITE,
+                            bgcolor=ft.colors.GREY_400,
+                        )
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,  # Centraliza verticalmente os itens
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=10,
+            ),
+            bgcolor=ft.colors.WHITE,  # Cor de fundo do contêiner
+            border=ft.border.all(3, ft.colors.BLACK),  # Borda preta de 3px
+            padding=20,  # Espaçamento interno (padding)
+            margin=ft.margin.symmetric(vertical=20),  # Margem reduzida no topo e embaixo
+            width=400,  # Largura fixa do retângulo
+            alignment=ft.alignment.center,  # Centraliza o retângulo dentro do container
+            border_radius=10,  # Bordas arredondadas
+        )
 
         self.page.views.append(
             ft.View(
@@ -338,25 +391,28 @@ class Inicial:
                 [
                     ft.AppBar(title=ft.Text("Cadastrar"), bgcolor=ft.colors.SURFACE_VARIANT),
                     ft.Container(
-                        content=ft.Column(
+                        content=ft.Stack(  # Usando Stack para sobreposição
                             controls=[
-                                self.email_field,
-                                self.cpf_field,
-                                self.nome_field,
-                                self.telefone_field,
-                                self.senha_field,
-                                self.senha_confirmacao_field,
-                                ft.ElevatedButton("Cadastrar", on_click=self.handleSignup, bgcolor=ft.colors.GREEN),
-                                ft.TextButton("Voltar", on_click=self.buildWelcomeView, style=ft.ButtonStyle(
-                                    color=ft.colors.WHITE,
-                                    bgcolor=ft.colors.GREY_400,
-                                )),
+                                # Contêiner para a imagem
+                                ft.Container(
+                                    content=ft.Image(
+                                        src="../Imagens/cadastro.png",  # Caminho da imagem
+                                        fit=ft.ImageFit.CONTAIN,
+                                        width=200,  # Largura fixa da imagem
+                                        height=200,  # Altura fixa da imagem
+                                    ),
+                                    margin=ft.margin.only(bottom=20),  # Margem abaixo da imagem
+                                    alignment=ft.alignment.center,  # Centraliza a imagem dentro do contêiner
+                                ),
+                                ft.Container(  # Coloca o signup_container por cima da imagem
+                                    content=signup_container,  # Contêiner de cadastro
+                                    alignment=ft.alignment.center,  # Centraliza o contêiner de cadastro
+                                )
                             ],
-                            alignment=ft.MainAxisAlignment.CENTER,  # Alinhamento vertical
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,  # Alinhamento horizontal
-                            spacing=10,
                         ),
-                        alignment=ft.alignment.center,  # Centraliza o Container na tela
+                        bgcolor=ft.colors.RED,  # Fundo da página vermelho
+                        expand=True,  # Garante que o container ocupe toda a página
+                        alignment=ft.alignment.center,  # Centraliza todo o conteúdo da página
                     ),
                 ]
             )
@@ -479,7 +535,6 @@ class Inicial:
             "/": self.buildHomeView,
             "/chatIAFlet": self.buildChatView,
             "/sobre": self.buildAboutView,
-            "/contato": self.buildContactView,
         }
         view_function = views.get(route, self.buildErrorView)
         view_function()  # Chama a função de view correspondente
@@ -499,10 +554,9 @@ class Inicial:
                     ft.AppBar(title=ft.Text("Seu Assistente Baymax"), bgcolor=ft.colors.SURFACE_VARIANT),
                     ft.NavigationBar(
                         destinations=[
-                            ft.NavigationBarDestination(icon=ft.icons.CHAT, label="Chat IA"),
-                            ft.NavigationBarDestination(icon=ft.icons.INFO, label="Sobre Nós"),
-                            ft.NavigationBarDestination(icon=ft.icons.CONTACT_MAIL, label="Contato"),
-                            ft.NavigationBarDestination(icon=ft.icons.EXIT_TO_APP, label="Sair"),
+                            ft.NavigationBarDestination(icon=ft.icons.HOME, label="Home"),  # Botão Home
+                            ft.NavigationBarDestination(icon=ft.icons.CHAT, label="Chat"),
+                            ft.NavigationBarDestination(icon=ft.icons.INFO, label="Sobre"),
                         ],
                         on_change=self.handleNavigation,
                     ),
@@ -512,17 +566,14 @@ class Inicial:
         )
         self.page.update()  # Atualiza a página
 
-
     def handleNavigation(self, e):
         """Navega entre as diferentes páginas do aplicativo."""
         if e.control.selected_index == 0:
-            self.page.go("/chatIAFlet")  # Navega para a página de chat IA
+            self.page.go("/")  # Navega para a página Home
         elif e.control.selected_index == 1:
-            self.page.go("/sobre")  # Navega para a página 'Sobre Nós'
+            self.page.go("/chatIAFlet")  # Navega para a página de chat IA
         elif e.control.selected_index == 2:
-            self.page.go("/contato")  # Navega para a página de contato
-        elif e.control.selected_index == 3:
-            self.page.go("/")  # Retorna para a página principal
+            self.page.go("/sobre")  # Navega para a página 'Sobre'
 
     def buildChatView(self):
         """Constrói a interface do chat com balões de fala."""
@@ -729,6 +780,7 @@ class Inicial:
                 [
                     ft.AppBar(title=ft.Text("Sobre Nós"), bgcolor=ft.colors.SURFACE_VARIANT),
                     ft.Text("Aqui estão algumas informações sobre nós.", size=24),
+                    self.buildBackButton(),
                 ],
             )
         )
@@ -741,6 +793,7 @@ class Inicial:
                 [
                     ft.AppBar(title=ft.Text("Contato"), bgcolor=ft.colors.SURFACE_VARIANT),
                     ft.Text("Entre em contato conosco.", size=24),
+                    self.buildBackButton(),
                 ],
             )
         )
