@@ -37,7 +37,7 @@ class Database:
             print("Conexão com o banco de dados fechada.")
 
     def createUser(self, email, cpf, nomeCompleto, telefone, senha):
-        """Insere um novo usuário no banco de dados."""
+        """Insere um novo usuario no banco de dados."""
         try:
             cursor = self.connection.cursor()
             comando = 'INSERT INTO usuario (email, cpf, nomeCompleto, telefone, senha) VALUES (%s, %s, %s, %s, %s)'
@@ -117,17 +117,22 @@ class Inicial:
 
     def loadingScreen(self):
         """Exibe a tela de carregamento."""
-        self.imagePath = "C:/Users/decau/PycharmProjects/ProjetoBaymax/v4/app/Imagens/baymax.png"
-
+        self.imagePath = "../Imagens/BaymaxOi.png"
         if not os.path.isfile(self.imagePath):
             print(f"Erro: A imagem '{self.imagePath}' não foi encontrada.")
             imageContent = ft.Text("Imagem não encontrada.", color=ft.colors.RED)  # Mensagem de erro
         else:
-            imageContent = ft.Image(src=self.imagePath, width=self.page.width, height=self.page.height,
-                                    fit=ft.ImageFit.CONTAIN)
+
+            imageContent = ft.Image(
+                src=self.imagePath,
+                width=700,  # Defina a largura desejada
+                height=700,  # Defina a altura desejada
+                fit=ft.ImageFit.CONTAIN
+            )
 
         loadingContent = ft.Stack(
             [
+
                 ft.Container(
                     content=imageContent,
                     alignment=ft.alignment.bottom_right,
@@ -136,12 +141,16 @@ class Inicial:
                 ft.Container(
                     content=ft.Text("Seu Assistente Baymax", size=32, color=ft.colors.WHITE),
                     alignment=ft.alignment.top_center,
-                    margin=ft.margin.only(bottom=80),
+                    margin=ft.margin.only(bottom=70),
                 ),
                 ft.Container(
-                    content=ft.Text("Acesso Antecipado", size=20, color=ft.colors.YELLOW_300),
+                    content=ft.Image(
+                        src="../Imagens/acesso.png",
+                        fit=ft.ImageFit.CONTAIN,
+                        width=200,  # Define a largura da imagem
+                        height=200  # Define a altura da imagem
+                    ),
                     alignment=ft.alignment.bottom_left,
-                    margin=ft.margin.only(left=20, bottom=20),
                 ),
             ]
         )
@@ -157,67 +166,156 @@ class Inicial:
                     ),
                 ],
             )
+
         )
+
         self.page.update()
 
         threading.Thread(target=self.delayLoading).start()
 
     def delayLoading(self):
         """Aguarda um tempo antes de carregar a tela de boas-vindas."""
-        threading.Event().wait(2)
+        threading.Event().wait(3)
         self.buildWelcomeView()  # Chama a nova tela de boas-vindas
 
     def buildWelcomeView(self, e=None):
-        """Constrói a tela de boas-vindas."""
+        """Constrói a tela de boas-vindas com fundo vermelho e retângulo centralizado e responsivo."""
         self.page.views.clear()
         self.page.views.append(
             ft.View(
                 "/welcome",
                 [
+                    # Fundo da página vermelho
                     ft.Container(
-                        content=ft.Image(src=self.imagePath, fit=ft.ImageFit.CONTAIN),
-                        alignment=ft.alignment.top_center,
-                    ),
-                    ft.Text("Novo por aqui?", size=24, color=ft.colors.BLACK),
-                    ft.ElevatedButton("Cadastrar", on_click=self.buildSignupView, bgcolor=ft.colors.GREEN),
-                    ft.Text("Já tem uma conta?"),
-                    ft.ElevatedButton("Entrar", on_click=self.buildLoginView, bgcolor=ft.colors.BLUE),
-                    ft.Container(
-                        content=ft.ElevatedButton("Sair", on_click=self.closeApp, bgcolor=ft.colors.RED),
-                        alignment=ft.alignment.bottom_center,
-                        margin=ft.margin.only(bottom=20),
-                    ),
-                ],
-            )  # Removido o 'alignment' aqui
+                        content=ft.Container(
+                            content=ft.Column(
+                                controls=[
+                                    # Balão de fala para "Novo por aqui?"
+                                    ft.Container(
+                                        content=ft.Text("Novo por aqui?", size=24, color=ft.colors.BLACK),
+                                        padding=10,
+                                        bgcolor=ft.colors.WHITE,  # Fundo branco do balão
+                                        border=ft.border.all(2, ft.colors.BLACK),
+                                        border_radius=10,
+                                        alignment=ft.alignment.center,
+                                        margin=ft.margin.only(bottom=10),  # Margem abaixo
+                                    ),
+
+                                    # Botão "Cadastrar"
+                                    ft.ElevatedButton(
+                                        "Cadastrar",
+                                        on_click=self.buildSignupView,
+                                        bgcolor=ft.colors.RED_800,
+                                        style=ft.ButtonStyle(
+                                            color=ft.colors.BLACK,
+                                            side=ft.BorderSide(3, ft.colors.BLACK),
+                                        ),
+                                        width=160,  # Largura reduzida em 20%
+                                        height=40,  # Altura reduzida em 20%
+                                    ),
+
+                                    # Imagem superior
+                                    ft.Image(
+                                        src="../Imagens/inicial.png",
+                                        fit=ft.ImageFit.CONTAIN,
+                                        width=200,  # Largura fixa da imagem
+                                        height=200,  # Altura fixa da imagem
+                                    ),
+
+                                    ft.Container(
+                                        content=ft.Text("Já tem uma conta?", size=24, color=ft.colors.BLACK),
+                                        padding=10,
+                                        bgcolor=ft.colors.WHITE,  # Fundo branco do balão
+                                        border=ft.border.all(2, ft.colors.BLACK),
+                                        border_radius=10,
+                                        alignment=ft.alignment.center,
+                                        margin=ft.margin.only(top=10),  # Margem acima
+                                    ),
+
+                                    # Segunda imagem
+                                    ft.Image(
+                                        src="../Imagens/olhando.png",
+                                        fit=ft.ImageFit.CONTAIN,
+                                        width=150,  # Largura fixa da imagem
+                                        height=150,  # Altura fixa da imagem
+                                    ),
+
+                                    # Botão "Entrar"
+                                    ft.ElevatedButton(
+                                        "Entrar",
+                                        on_click=self.buildLoginView,
+                                        bgcolor=ft.colors.RED_800,
+                                        style=ft.ButtonStyle(
+                                            color=ft.colors.BLACK,
+                                            side=ft.BorderSide(3, ft.colors.BLACK),
+                                        ),
+                                        width=160,  # Largura reduzida em 20%
+                                        height=40,  # Altura reduzida em 20%
+                                    ),
+
+                                    # Botão "Sair"
+                                    ft.ElevatedButton(
+                                        "Sair",
+                                        on_click=self.closeApp,
+                                        bgcolor=ft.colors.RED_800,
+                                        style=ft.ButtonStyle(
+                                            color=ft.colors.BLACK,
+                                            side=ft.BorderSide(3, ft.colors.BLACK),
+                                        ),
+                                        width=160,  # Largura reduzida em 20%
+                                        height=40,  # Altura reduzida em 20%
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,  # Centraliza verticalmente os itens
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                # Centraliza horizontalmente os itens
+                            ),
+                            bgcolor=ft.colors.WHITE,  # Fundo do retângulo branco
+                            border=ft.border.all(3, ft.colors.BLACK),  # Borda preta de 3px
+                            padding=20,  # Espaçamento interno (padding)
+                            margin=ft.margin.symmetric(vertical=20),  # Margem reduzida no topo e embaixo
+                            width=400,  # Largura fixa do retângulo
+                            # Altura do retângulo adaptável, sem especificar a altura diretamente
+                            alignment=ft.alignment.center,  # Centraliza o retângulo dentro do container
+                        ),
+                        bgcolor=ft.colors.RED,  # Fundo da página vermelho
+                        expand=True,  # Garante que o container ocupe toda a página
+                        alignment=ft.alignment.center,  # Centraliza todo o conteúdo da página
+                    )
+                ]
+            )
         )
         self.page.update()
 
-    def buildLoginView(self, e):
+    def buildLoginView(self, e=None):
         """Constrói a tela de login."""
         self.page.views.clear()
         self.page.views.append(
             ft.View(
                 "/login",
                 [
-                    ft.AppBar(title=ft.Text("Login"), bgcolor=ft.colors.SURFACE_VARIANT),
                     ft.Column(
                         controls=[
-                            ft.TextField(label="Email", width=300),
-                            ft.TextField(label="Senha", width=300, password=True),
-                            ft.ElevatedButton("Entrar", on_click=self.handleLogin, bgcolor=ft.colors.BLUE),
-                            ft.TextButton("Cadastrar", on_click=self.buildSignupView, style=ft.ButtonStyle(
-                                color=ft.colors.WHITE,
-                                bgcolor=ft.colors.GREEN_300,
-                            )),
-                            ft.TextButton("Voltar", on_click=self.buildWelcomeView, style=ft.ButtonStyle(
-                                color=ft.colors.WHITE,
-                                bgcolor=ft.colors.GREY_400,
-                            )),
+                            ft.AppBar(title=ft.Text("Login"), bgcolor=ft.colors.SURFACE_VARIANT),
+                            ft.Column(
+                                controls=[
+                                    ft.TextField(label="Email", width=300),
+                                    ft.TextField(label="Senha", width=300, password=True),
+                                    ft.ElevatedButton("Entrar", on_click=self.handleLogin, bgcolor=ft.colors.BLUE),
+                                    ft.TextButton("Voltar", on_click=self.buildWelcomeView, style=ft.ButtonStyle(
+                                        color=ft.colors.WHITE,
+                                        bgcolor=ft.colors.GREY_400,
+                                    )),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                spacing=10,
+                            ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=10,
-                    ),
-                ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=20,
+                    )
+                ]
             )
         )
         self.page.update()
@@ -239,26 +337,31 @@ class Inicial:
                 "/signup",
                 [
                     ft.AppBar(title=ft.Text("Cadastrar"), bgcolor=ft.colors.SURFACE_VARIANT),
-                    ft.Column(
-                        controls=[
-                            self.email_field,
-                            self.cpf_field,
-                            self.nome_field,
-                            self.telefone_field,
-                            self.senha_field,
-                            self.senha_confirmacao_field,
-                            ft.ElevatedButton("Cadastrar", on_click=self.handleSignup, bgcolor=ft.colors.GREEN),
-                            ft.TextButton("Voltar", on_click=self.buildWelcomeView, style=ft.ButtonStyle(
-                                color=ft.colors.WHITE,
-                                bgcolor=ft.colors.GREY_400,
-                            )),
-                        ],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        spacing=10,
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                self.email_field,
+                                self.cpf_field,
+                                self.nome_field,
+                                self.telefone_field,
+                                self.senha_field,
+                                self.senha_confirmacao_field,
+                                ft.ElevatedButton("Cadastrar", on_click=self.handleSignup, bgcolor=ft.colors.GREEN),
+                                ft.TextButton("Voltar", on_click=self.buildWelcomeView, style=ft.ButtonStyle(
+                                    color=ft.colors.WHITE,
+                                    bgcolor=ft.colors.GREY_400,
+                                )),
+                            ],
+                            alignment=ft.MainAxisAlignment.CENTER,  # Alinhamento vertical
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,  # Alinhamento horizontal
+                            spacing=10,
+                        ),
+                        alignment=ft.alignment.center,  # Centraliza o Container na tela
                     ),
-                ],
+                ]
             )
         )
+
         self.page.update()
 
     def closeApp(self, e):  # Adicione o parâmetro `e`
@@ -288,14 +391,17 @@ class Inicial:
 
     def handleLogin(self, e):
         """Lida com a autenticação do usuário."""
-        loginView = self.page.views[-1]
-        controls = loginView.controls[1].controls
+        loginView = self.page.views[-1]  # Acessa a última view (a de login)
+
+        # Verifica se os campos de email e senha estão dentro de um Column
+        controls = loginView.controls[0].controls[1].controls  # Ajuste para acessar o Column correto
+
         email = controls[0].value
         senha = controls[1].value
 
         try:
             user = self.db.readUserByEmail(email)
-            if user and user[5] == senha:  # Verifica se o usuário existe e a senha está correta (assumindo que senha é a 5ª coluna)
+            if user and user[5] == senha:  # Verifica se o usuário existe e se a senha está correta
                 print(f"Usuário '{email}' autenticado com sucesso.")
                 self.page.go("/")  # Navega para a tela principal
             else:
@@ -361,7 +467,7 @@ class Inicial:
                 "max_output_tokens": 1024,
                 "response_mime_type": "text/plain",
             },
-            system_instruction=system_instruction  # Usando a instrução do arquivo
+            system_instruction=system_instruction   # Usando a instrução do arquivo
         )
         return model
 

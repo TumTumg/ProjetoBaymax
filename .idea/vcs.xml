@@ -3,5 +3,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Baymax" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/v4" vcs="Git" />
   </component>
 </project>
