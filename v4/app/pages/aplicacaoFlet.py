@@ -1,3 +1,6 @@
+import tensorflow as tf
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
 import flet as ft
 import google.generativeai as genai
 import pyttsx3
@@ -6,6 +9,10 @@ import os
 import speech_recognition as sr
 import mysql.connector
 from mysql.connector import Error
+from keras import Sequential
+from keras.layers import Dense, Input
+import numpy as np
+
 
 class Database:
     def __init__(self, host='localhost', user='root', password='', database='baymax'):
@@ -89,6 +96,52 @@ class Database:
         finally:
             cursor.close()
 
+    def salvarConversa(self, idUsuario, mensagemUsuario, respostaBaymax):
+        """Salva a conversa no banco de dados."""
+        if self.connection is None or not self.connection.is_connected():
+            print("Erro: A conexão não foi inicializada ou não está conectada.")
+            return  # Não tenta salvar se não estiver conectado
+
+        try:
+            cursor = self.connection.cursor()
+            query = """
+                INSERT INTO conversa (idUsuario, mensagemUsuario, respostaBaymax)
+                VALUES (%s, %s, %s)
+            """
+            valores = (idUsuario, mensagemUsuario, respostaBaymax)
+            cursor.execute(query, valores)
+            self.connection.commit()  # Confirma a transação
+            print("Conversa salva no banco de dados com sucesso!")
+        except Error as e:
+            print(f"Erro ao salvar conversa no banco de dados: {e}")
+        finally:
+            cursor.close()
+
+class NeuralNetwork:
+    def __init__(self):
+        self.model = self.createModel()
+        self.encoder = LabelEncoder()  # Codifica labels de saída, se necessário
+
+    def createModel(self):
+        """Cria e compila um modelo de rede neural simples."""
+        model = tf.keras.Sequential([
+            tf.keras.layers.Dense(128, activation='relu', input_shape=(10,)),  # Exemplo de 10 inputs
+            tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Dense(1, activation='sigmoid')  # Saída binária
+        ])
+        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        return model
+
+    def trainModel(self, X, y):
+        """Treina o modelo com os dados fornecidos."""
+        y_encoded = self.encoder.fit_transform(y)  # Codifica as labels, se necessário
+        self.model.fit(X, y_encoded, epochs=10, batch_size=32)
+
+    def predict(self, X):
+        """Realiza a predição com os dados de entrada."""
+        predictions = self.model.predict(X)
+        return predictions
+
 class Inicial:
     def __init__(self, page):
         self.page = page
@@ -102,15 +155,18 @@ class Inicial:
         self.typing_message = None
         self.tts_engine = pyttsx3.init()
         self.speech_enabled = True
-        self.speech_queue = []  # Aqui está a definição do speechQueue
+        self.speech_queue = []  # Fila de fala
+        self.neuralNetwork = NeuralNetwork()  # Inicializando a rede neural
+        self.db = Database(user='root', password='')  # Conexão com o banco de dados
+        self.db.createConnection()  # Tenta estabelecer a conexão
+        self.user_id = None  # ID do usuário atual, precisa ser definido após login
+
         if not self.setVoice():
             print("Nenhuma voz masculina encontrada, utilizando a voz padrão.")
 
         self.page.on_route_change = self.routeChange
         self.loadingScreen()
         self.conversation_history = []
-        self.db = Database(user='root', password='')  # Conexão com o banco de dados
-        self.db.createConnection()  # Tenta estabelecer a conexão
 
     def close(self):
         self.db.closeConnection()
@@ -527,6 +583,48 @@ class Inicial:
         )
         return model
 
+    def initializeNeuralNetworkModel(self):
+        """Inicializa a rede neural para aprendizado contínuo."""
+        os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+        model = Sequential()
+        model.add(Input(shape=(10,)))  # Ajuste o tamanho da entrada conforme o seu problema
+        model.add(Dense(64, activation='relu'))
+        model.add(Dense(32, activation='relu'))
+        model.add(Dense(1, activation='linear'))  # Ajuste conforme o tipo de saída (regressão ou classificação)
+
+        # Compilar o modelo
+        model.compile(optimizer='adam', loss='mean_squared_error', metrics=['accuracy'])
+        return model
+
+    def fetchTrainingData(self):
+        """Busca os dados de treinamento do banco de dados."""
+        query = "SELECT * FROM usuario"  # Ajuste a consulta conforme necessário
+        self.db.cursor.execute(query)
+        result = self.db.cursor.fetchall()
+
+        # Processar os dados para treinar a rede neural
+        data = []
+        labels = []
+        for row in result:
+            # Extraia as características dos dados e os rótulos
+            # Exemplo: data.append([feature1, feature2, ...]), labels.append(target)
+            pass  # Substitua por seu código para processar as linhas
+
+        return data, labels
+
+    def trainNeuralNetwork(self, data, labels):
+        """Treina a rede neural com os dados fornecidos."""
+        model = self.initializeNeuralNetworkModel()
+        # Converta seus dados e rótulos para numpy arrays
+        data = np.array(data)
+        labels = np.array(labels)
+
+        # Treine a rede neural
+        model.fit(data, labels, epochs=10, batch_size=32)  # Ajuste os parâmetros conforme necessário
+
+        # Retorne o modelo treinado
+        return model
+
     def routeChange(self, route_event_or_str):
         """Atualiza a view de acordo com a rota."""
         self.page.views.clear()  # Limpa as views atuais
@@ -620,19 +718,6 @@ class Inicial:
         )
         self.page.update()
 
-    def toggleVoice(self, e):
-        """Ativa ou desativa a fala."""
-        self.speech_enabled = not self.speech_enabled
-        self.voice_button.text = "Ativar Voz" if not self.speech_enabled else "Desativar Voz"
-        self.page.update()
-
-    def startVoiceRecognition(self, e):
-        """Inicia o reconhecimento de voz em uma thread separada."""
-        threading.Thread(target=self.recognizeSpeech).start()
-
-    def startVoiceRecognition(self, e):
-        """Inicia o reconhecimento de voz em uma thread separada."""
-        threading.Thread(target=self.recognizeSpeech).start()
 
     def recognizeSpeech(self):
         """Reconhece a fala e envia como mensagem."""
@@ -656,6 +741,34 @@ class Inicial:
         except Exception as e:
             print(f"Ocorreu um erro: {e}")
 
+
+    def trainNeuralNetwork(self):
+        """Treina a rede neural com dados de entrada e saída do chat."""
+        X_train = np.array(
+            [self.prepareInputData(msg['user']) for msg in self.conversation_history])  # Dados de entrada
+        y_train = np.array([self.prepareOutputData(msg['baymax']) for msg in self.conversation_history])  # Saídas
+        self.neuralNetwork.trainModel(X_train, y_train)
+
+    def prepareInputData(self, message):
+        """Transforma a mensagem do usuário em dados numéricos para o treinamento."""
+        # Esta função precisa ser personalizada conforme a natureza dos dados
+        return np.random.rand(10)  # Exemplo de vetor com 10 features
+
+    def prepareOutputData(self, message):
+        """Transforma a resposta do Baymax em dados numéricos para o treinamento."""
+        # Esta função precisa ser personalizada conforme a natureza dos dados
+        return np.random.randint(2)  # Exemplo de saída binária (0 ou 1)
+
+    def toggleVoice(self, e):
+        """Ativa ou desativa a fala."""
+        self.speech_enabled = not self.speech_enabled
+        self.voice_button.text = "Ativar Voz" if not self.speech_enabled else "Desativar Voz"
+        self.page.update()
+
+    def startVoiceRecognition(self, e):
+        """Inicia o reconhecimento de voz em uma thread separada."""
+        threading.Thread(target=self.recognizeSpeech).start()
+
     def sendMessage(self, e):
         texto = self.message_input.value.strip()
         if texto.lower() == "sair":
@@ -671,7 +784,6 @@ class Inicial:
         self.processing_message = True
 
         try:
-            # Enviar a mensagem
             user_bubble = ft.Container(
                 content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.WHITE),
                 bgcolor=ft.colors.GREEN_400,
@@ -682,7 +794,6 @@ class Inicial:
             )
             self.chat_box.controls.append(user_bubble)
 
-            # Simula que Baymax está digitando
             self.typing_message = ft.Container(
                 content=ft.Text("Baymax está digitando...", size=16, color=ft.colors.YELLOW),
                 bgcolor=ft.colors.GREY,
@@ -694,30 +805,32 @@ class Inicial:
             self.chat_box.controls.append(self.typing_message)
             self.page.update()
 
-            threading.Thread(target=self.handleSendMessage, args=(texto,)).start()  # Envia em uma nova thread
+            threading.Thread(target=self.handleSendMessage, args=(texto,)).start()
 
         except Exception as e:
             print(f"Erro ao enviar mensagem: {e}")
         finally:
             self.processing_message = False
 
-
     def handleSendMessage(self, texto):
         """Processa o envio da mensagem em uma nova thread."""
         response = self.chat.send_message(texto)
 
-        # Adiciona a interação ao histórico
-        self.conversation_history.append({"user": texto, "baymax": response.text})
-
+        # Verifica se a resposta foi recebida
         if hasattr(response, 'text'):
             resposta_texto = response.text
+            # Aqui você pode integrar a rede neural para aprender com a resposta
+            self.neuralNetwork.learn(texto, resposta_texto)  # Método hipotético de aprendizado
         else:
             resposta_texto = "Desculpe, não consegui entender."
 
-        # Remove a mensagem de "digitando"
-        if self.typing_message:
-            self.chat_box.controls.remove(self.typing_message)
-            self.typing_message = None
+        # Salva a conversa no banco de dados
+        usuario_id = self.user_id if self.user_id else 1  # Usa o ID do usuário atual ou 1
+        self.db.salvarConversa(usuario_id, texto, resposta_texto)
+
+        # Adiciona a fala à fila
+        self.speech_queue.append(resposta_texto)
+        self.speak_next()  # Inicia a fala se não estiver falando
 
         # Adiciona a nova mensagem do Baymax ao chat
         baymax_bubble = ft.Container(
@@ -733,25 +846,42 @@ class Inicial:
         self.message_input.value = ""
         self.page.update()
 
-        print(f"Baymax vai falar: {resposta_texto}")
+    def coletarFeedback(self, usuario_id):
+        """Coleta feedback do usuário sobre a resposta do Baymax."""
+        feedback = input("A resposta do Baymax foi útil? (útil/não útil): ")
 
-        # Adiciona a fala à fila
-        self.speech_queue.append(resposta_texto)
-        self.speak_next()  # Inicia a fala se não estiver falando
+        # Você pode adicionar lógica para lidar com respostas inválidas
+        self.db.salvarFeedback(conversa_id, feedback)
+
+    def salvarFeedback(self, idConversa, avaliacao):
+        """Salva o feedback no banco de dados."""
+        try:
+            cursor = self.connection.cursor()
+            query = """
+                INSERT INTO feedback (idConversa, avaliacao)
+                VALUES (%s, %s)
+            """
+            valores = (idConversa, avaliacao)
+            cursor.execute(query, valores)
+            self.connection.commit()
+            print("Feedback salvo com sucesso!")
+        except Error as e:
+            print(f"Erro ao salvar feedback: {e}")
+        finally:
+            cursor.close()
 
     def speak(self, text):
         """Faz o Baymax falar o texto fornecido."""
-        try:
-            if self.speech_enabled:
-                print(f"Iniciando fala: {text}")
-                with self.lock:  # Garante que só uma chamada possa executar a fala
+        if self.speech_enabled:
+            try:
+                with self.lock:  # Garante acesso seguro a threads
                     self.tts_engine.say(text)
                     self.tts_engine.runAndWait()
                     print(f"Baymax falou: {text}")
-            else:
-                print("Voz desativada, não falando.")
-        except Exception as e:
-            print(f"Erro ao falar: {str(e)}")
+            except Exception as e:
+                print(f"Erro ao falar: {str(e)}")
+        else:
+            print("Voz desativada, não falando.")
 
     def speak_next(self):
         """Fala a próxima mensagem da fila, se houver."""
