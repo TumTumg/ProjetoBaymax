@@ -10,7 +10,7 @@ import speech_recognition as sr
 import mysql.connector
 from mysql.connector import Error
 from keras import Sequential
-from keras.layers import Dense, Input
+from sklearn.preprocessing import LabelEncoder
 import numpy as np
 
 
@@ -44,7 +44,7 @@ class Database:
             print("Conexão com o banco de dados fechada.")
 
     def createUser(self, email, cpf, nomeCompleto, telefone, senha):
-        """Insere um novo usuario no banco de dados."""
+        """Insere um novo usuário no banco de dados."""
         try:
             cursor = self.connection.cursor()
             comando = 'INSERT INTO usuario (email, cpf, nomeCompleto, telefone, senha) VALUES (%s, %s, %s, %s, %s)'
@@ -119,29 +119,57 @@ class Database:
 
 class NeuralNetwork:
     def __init__(self):
-        self.model = self.createModel()
-        self.encoder = LabelEncoder()  # Codifica labels de saída, se necessário
+        self.models = {}  # Armazena modelos para cada usuário
+        self.encoder = LabelEncoder()  # Codifica labels de saída
+        self.conversation_data = {}  # Armazena pares de entrada/saída por ID de usuário
 
-    def createModel(self):
-        """Cria e compila um modelo de rede neural simples."""
+    def createModel(self, user_id):
+        """Cria e compila um modelo de rede neural para o usuário especificado."""
         model = tf.keras.Sequential([
             tf.keras.layers.Dense(128, activation='relu', input_shape=(10,)),  # Exemplo de 10 inputs
             tf.keras.layers.Dense(64, activation='relu'),
             tf.keras.layers.Dense(1, activation='sigmoid')  # Saída binária
         ])
         model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-        return model
+        self.models[user_id] = model  # Armazena o modelo por ID de usuário
 
-    def trainModel(self, X, y):
-        """Treina o modelo com os dados fornecidos."""
-        y_encoded = self.encoder.fit_transform(y)  # Codifica as labels, se necessário
-        self.model.fit(X, y_encoded, epochs=10, batch_size=32)
+    def encode_message(self, user_message):
+        """Codifica a mensagem do usuário. Substitua este exemplo por sua lógica real."""
+        # Exemplo simples de codificação: convertendo para uma lista de inteiros (pode ser substituído por algo mais complexo)
+        # Aqui você pode implementar uma tokenização ou uma técnica de vetorização apropriada
+        encoded_message = np.random.rand(10)  # Exemplo: vetor de 10 valores aleatórios
+        return encoded_message
 
-    def predict(self, X):
-        """Realiza a predição com os dados de entrada."""
-        predictions = self.model.predict(X)
-        return predictions
+    def learn(self, user_id, user_message, response):
+        """Adiciona um par de mensagem-resposta aos dados de conversação e treina o modelo do usuário."""
+        if user_id not in self.conversation_data:
+            self.conversation_data[user_id] = []  # Inicializa a lista para o novo usuário
 
+        self.conversation_data[user_id].append((user_message, response))
+
+        # Codifica a mensagem do usuário
+        X = np.array([self.encode_message(user_message)])  # Codifica a mensagem do usuário
+        # Exemplo: Mapeia a resposta a um valor binário
+        y = np.array([1 if response.lower() == "útil" else 0])  # Usa 'útil' como rótulo
+
+        # Treina o modelo para o usuário específico
+        self.trainModel(user_id, X, y)
+
+    def trainModel(self, user_id, X, y):
+        """Treina o modelo com os dados fornecidos para o usuário específico."""
+        if user_id not in self.models:
+            self.createModel(user_id)  # Cria um modelo se ainda não existir
+
+        # y deve ser um array de 1s e 0s (saídas esperadas)
+        self.models[user_id].fit(X, y, epochs=10, batch_size=32)
+
+    def predict(self, user_id, X):
+        """Realiza a predição com os dados de entrada para o usuário específico."""
+        model = self.models.get(user_id)
+        if model:
+            predictions = model.predict(X)
+            return predictions
+        return None
 class Inicial:
     def __init__(self, page):
         self.page = page
@@ -814,13 +842,22 @@ class Inicial:
 
     def handleSendMessage(self, texto):
         """Processa o envio da mensagem em uma nova thread."""
+        if not texto.strip():
+            print("Mensagem vazia, não enviando.")
+            return
+
+        print(f"Enviando mensagem: {texto}")  # Debug: Mensagem do usuário
+
+        # Envia a mensagem e obtém a resposta
         response = self.chat.send_message(texto)
 
         # Verifica se a resposta foi recebida
         if hasattr(response, 'text'):
             resposta_texto = response.text
-            # Aqui você pode integrar a rede neural para aprender com a resposta
-            self.neuralNetwork.learn(texto, resposta_texto)  # Método hipotético de aprendizado
+            print(f"Resposta do Baymax: {resposta_texto}")  # Debug: Resposta do Baymax
+
+            # Integra a rede neural para aprender com a resposta, passando o user_id
+            self.neuralNetwork.learn(self.user_id, texto, resposta_texto)  # Método adaptado para incluir o user_id
         else:
             resposta_texto = "Desculpe, não consegui entender."
 
@@ -828,9 +865,25 @@ class Inicial:
         usuario_id = self.user_id if self.user_id else 1  # Usa o ID do usuário atual ou 1
         self.db.salvarConversa(usuario_id, texto, resposta_texto)
 
-        # Adiciona a fala à fila
-        self.speech_queue.append(resposta_texto)
-        self.speak_next()  # Inicia a fala se não estiver falando
+        # Adiciona a nova mensagem do usuário ao chat
+        user_bubble = ft.Container(
+            content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.BLACK),
+            bgcolor=ft.colors.LIGHT_GREEN,
+            padding=10,
+            border_radius=10,
+            alignment=ft.alignment.center_right,
+            margin=ft.margin.only(bottom=5)
+        )
+
+        # Verifica se a mensagem do usuário já está no chat
+        if not any(user_bubble.content.value in control.content.value for control in self.chat_box.controls):
+            self.chat_box.controls.append(user_bubble)
+            print("Mensagem do usuário adicionada ao chat.")  # Debug: Confirmação da mensagem do usuário
+
+        # Remover a mensagem "Baymax está digitando..." se existir
+        if hasattr(self, 'typing_message'):
+            self.chat_box.controls.remove(self.typing_message)
+            print("Mensagem 'Baymax está digitando...' removida.")  # Debug: Confirmação da remoção
 
         # Adiciona a nova mensagem do Baymax ao chat
         baymax_bubble = ft.Container(
@@ -841,9 +894,16 @@ class Inicial:
             alignment=ft.alignment.center_left,
             margin=ft.margin.only(bottom=5)
         )
-        self.chat_box.controls.append(baymax_bubble)
 
+        # Adiciona a mensagem do Baymax ao chat
+        if not any(baymax_bubble.content.value in control.content.value for control in self.chat_box.controls):
+            self.chat_box.controls.append(baymax_bubble)
+            print("Mensagem do Baymax adicionada ao chat.")  # Debug: Confirmação da mensagem do Baymax
+
+        # Limpa o campo de entrada
         self.message_input.value = ""
+
+        # Atualiza a página para refletir as novas mensagens
         self.page.update()
 
     def coletarFeedback(self, usuario_id):
@@ -851,7 +911,7 @@ class Inicial:
         feedback = input("A resposta do Baymax foi útil? (útil/não útil): ")
 
         # Você pode adicionar lógica para lidar com respostas inválidas
-        self.db.salvarFeedback(conversa_id, feedback)
+        self.db.salvarFeedback(usuario_id, feedback)
 
     def salvarFeedback(self, idConversa, avaliacao):
         """Salva o feedback no banco de dados."""

@@ -4,13 +4,6 @@ CREATE DATABASE baymax;
 -- Uso do banco de dados 'baymax'
 USE baymax;
 
--- Criação da tabela 'usuario'
-CREATE TABLE usuario (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    senha VARCHAR(255) NOT NULL
-);
-
 SELECT * FROM usuario;
 
 CREATE TABLE usuario (
@@ -21,6 +14,26 @@ CREATE TABLE usuario (
     telefone VARCHAR(15),
     senha VARCHAR(255) NOT NULL
 );
+
+-- Criação da tabela 'conversa' para armazenar o histórico de conversas
+CREATE TABLE conversa (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    idUsuario INT NOT NULL,  -- Referência ao ID do usuário
+    mensagemUsuario TEXT NOT NULL,  -- Mensagem enviada pelo usuário
+    respostaBaymax TEXT NOT NULL,  -- Resposta dada pelo Baymax
+    dataHora TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Data e hora da interação
+    FOREIGN KEY (idUsuario) REFERENCES usuario(id)  -- Chave estrangeira para a tabela de usuários
+);
+
+SELECT * FROM conversa;
+
+CREATE TABLE feedback (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    idConversa INT NOT NULL,
+    avaliacao ENUM('útil', 'não útil') NOT NULL,
+    FOREIGN KEY (idConversa) REFERENCES conversa(id)
+);
+
 
 
 
