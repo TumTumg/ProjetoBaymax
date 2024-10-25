@@ -10,8 +10,9 @@ import speech_recognition as sr
 import mysql.connector
 from mysql.connector import Error
 from keras import Sequential
-from sklearn.preprocessing import LabelEncoder
-import numpy as np
+from tensorflow.keras.models import Sequential
+from sklearn.feature_extraction.text import TfidfVectorizer
+from tensorflow.keras.layers import Input, Dense
 
 
 class Database:
@@ -43,18 +44,22 @@ class Database:
             self.connection.close()
             print("Conexão com o banco de dados fechada.")
 
+    def _checkConnection(self):
+        """Verifica se a conexão com o banco de dados está ativa."""
+        if self.connection is None or not self.connection.is_connected():
+            self.createConnection()
+
     def createUser(self, email, cpf, nomeCompleto, telefone, senha):
         """Insere um novo usuário no banco de dados."""
+        self._checkConnection()
         try:
-            cursor = self.connection.cursor()
-            comando = 'INSERT INTO usuario (email, cpf, nomeCompleto, telefone, senha) VALUES (%s, %s, %s, %s, %s)'
-            cursor.execute(comando, (email, cpf, nomeCompleto, telefone, senha))
-            self.connection.commit()
-            print(f"Usuário '{nomeCompleto}' criado com sucesso.")
+            with self.connection.cursor() as cursor:
+                comando = 'INSERT INTO usuario (email, cpf, nomeCompleto, telefone, senha) VALUES (%s, %s, %s, %s, %s)'
+                cursor.execute(comando, (email, cpf, nomeCompleto, telefone, senha))
+                self.connection.commit()
+                print(f"Usuário '{nomeCompleto}' criado com sucesso.")
         except Error as e:
             print(f"Erro ao criar usuário: {e}")
-        finally:
-            cursor.close()
 
     def readUserByEmail(self, email):
         """Lê um usuário do banco de dados pelo email."""
@@ -72,6 +77,7 @@ class Database:
 
     def updateUser(self, emailAntigo, emailNovo, senhaNova, nomeCompletoNovo, telefoneNovo):
         """Atualiza um usuário existente no banco de dados."""
+        self._checkConnection()
         try:
             cursor = self.connection.cursor()
             comando = 'UPDATE usuario SET email = %s, senha = %s, nomeCompleto = %s, telefone = %s WHERE email = %s'
@@ -85,6 +91,7 @@ class Database:
 
     def deleteUser(self, email):
         """Deleta um usuário do banco de dados."""
+        self._checkConnection()
         try:
             cursor = self.connection.cursor()
             comando = 'DELETE FROM usuario WHERE email = %s'
@@ -98,10 +105,7 @@ class Database:
 
     def salvarConversa(self, idUsuario, mensagemUsuario, respostaBaymax):
         """Salva a conversa no banco de dados."""
-        if self.connection is None or not self.connection.is_connected():
-            print("Erro: A conexão não foi inicializada ou não está conectada.")
-            return  # Não tenta salvar se não estiver conectado
-
+        self._checkConnection()
         try:
             cursor = self.connection.cursor()
             query = """
@@ -117,28 +121,30 @@ class Database:
         finally:
             cursor.close()
 
+
 class NeuralNetwork:
     def __init__(self):
         self.models = {}  # Armazena modelos para cada usuário
         self.encoder = LabelEncoder()  # Codifica labels de saída
         self.conversation_data = {}  # Armazena pares de entrada/saída por ID de usuário
+        self.vectorizer = TfidfVectorizer()  # Para codificação de mensagens
+        self.message_pool = []  # Para armazenar mensagens
 
     def createModel(self, user_id):
-        """Cria e compila um modelo de rede neural para o usuário especificado."""
-        model = tf.keras.Sequential([
-            tf.keras.layers.Dense(128, activation='relu', input_shape=(10,)),  # Exemplo de 10 inputs
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(1, activation='sigmoid')  # Saída binária
-        ])
-        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-        self.models[user_id] = model  # Armazena o modelo por ID de usuário
+        model = Sequential()
+        model.add(Input(shape=(128,)))  # Mantenha a forma de entrada
+        model.add(Dense(64, activation='relu'))
+        model.add(Dense(32, activation='relu'))
+        model.add(Dense(1, activation='sigmoid'))  # Use sigmoid para saída binária
 
-    def encode_message(self, user_message):
-        """Codifica a mensagem do usuário. Substitua este exemplo por sua lógica real."""
-        # Exemplo simples de codificação: convertendo para uma lista de inteiros (pode ser substituído por algo mais complexo)
-        # Aqui você pode implementar uma tokenização ou uma técnica de vetorização apropriada
-        encoded_message = np.random.rand(10)  # Exemplo: vetor de 10 valores aleatórios
-        return encoded_message
+        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        return model
+
+    def encode_message(self, message):
+        """Codifica a mensagem usando o vectorizer, se já estiver ajustado."""
+        if len(self.message_pool) < 30:  # Use o mesmo número mínimo
+            raise ValueError("O vectorizer não foi ajustado porque há menos de 30 mensagens.")
+        return self.vectorizer.transform([message]).toarray()
 
     def learn(self, user_id, user_message, response):
         """Adiciona um par de mensagem-resposta aos dados de conversação e treina o modelo do usuário."""
@@ -147,29 +153,72 @@ class NeuralNetwork:
 
         self.conversation_data[user_id].append((user_message, response))
 
-        # Codifica a mensagem do usuário
-        X = np.array([self.encode_message(user_message)])  # Codifica a mensagem do usuário
-        # Exemplo: Mapeia a resposta a um valor binário
-        y = np.array([1 if response.lower() == "útil" else 0])  # Usa 'útil' como rótulo
+        # Atualiza o pool de mensagens e ajusta o vectorizer se necessário
+        self.message_pool.append(user_message)  # Adiciona a mensagem ao pool
 
-        # Treina o modelo para o usuário específico
-        self.trainModel(user_id, X, y)
+        # Verifica se o número de mensagens é suficiente
+        if len(self.message_pool) >= 30:  # Ajustado para 30 mensagens
+            self.vectorizer.fit(self.message_pool)  # Ajusta o vectorizer
+        else:
+            print(f"Aguardando mais mensagens para ajustar o vectorizer. Mensagens atuais: {len(self.message_pool)}")
+
+        # Codifica a mensagem, se o vectorizer foi ajustado
+        if len(self.message_pool) >= 30:
+            X = np.array([self.encode_message(user_message)])  # Codifica a mensagem
+            y = np.array([1 if response.lower() == "útil" else 0])  # Usa 'útil' como rótulo
+
+            # Treina o modelo para o usuário específico
+            self.trainModel(user_id, X, y)
 
     def trainModel(self, user_id, X, y):
-        """Treina o modelo com os dados fornecidos para o usuário específico."""
+        print(f"Forma de X antes do treinamento: {X.shape}")
+        print(f"Forma de y antes do treinamento: {y.shape}")
+
+        if X.shape[1] != 128:
+            raise ValueError("A dimensão de entrada não é a esperada.")
+
+        model = self.createModel(user_id)  # Criando o modelo para o usuário
+        model.fit(X, y, epochs=10, batch_size=32)  # Ajuste conforme necessário
+        self.models[user_id] = model  # Armazena o modelo após o treinamento
+
+    def fitVectorizer(self, training_data):
+        """Ajusta o vectorizer com dados de treinamento."""
+        self.vectorizer.fit(training_data)
+
+    def processData(self, texto, resposta_texto):
+        X = self.vectorizer.transform([texto]).toarray()  # Garante que seja uma matriz 2D
+        y = np.array([1 if resposta_texto.lower() == "útil" else 0])  # Mapear resposta
+
+        # Asegure-se de que `X` tenha o formato correto
+        print("Forma de X antes do treinamento:", X.shape)
+        print("Forma de y antes do treinamento:", y.shape)
+
+        # Verifica se `y` precisa ser transformado
+        if len(y.shape) == 1:
+            y = y.reshape(-1, 1)  # Transforma em uma matriz 2D
+
+        # Verifica a forma de X e y
+        if X.shape[0] != y.shape[0]:
+            raise ValueError("X e y devem ter o mesmo número de amostras.")
+
+        # Define expected_input_dim como 128 para compatibilidade
+        expected_input_dim = 128
+        if X.shape[1] != expected_input_dim:
+            raise ValueError("A dimensão de entrada não é a esperada.")
+
+        return X, y
+
+    def predict(self, user_id, input_message):
+        """Faz uma previsão com base na entrada do usuário usando o modelo."""
         if user_id not in self.models:
-            self.createModel(user_id)  # Cria um modelo se ainda não existir
+            raise ValueError("Modelo não encontrado para o usuário.")
 
-        # y deve ser um array de 1s e 0s (saídas esperadas)
-        self.models[user_id].fit(X, y, epochs=10, batch_size=32)
+        model = self.models[user_id]
+        X = self.encode_message(input_message)  # Codifica a mensagem
+        prediction = model.predict(X)
 
-    def predict(self, user_id, X):
-        """Realiza a predição com os dados de entrada para o usuário específico."""
-        model = self.models.get(user_id)
-        if model:
-            predictions = model.predict(X)
-            return predictions
-        return None
+        return "útil" if prediction[0][0] >= 0.5 else "não útil"
+
 class Inicial:
     def __init__(self, page):
         self.page = page
@@ -197,8 +246,13 @@ class Inicial:
         self.conversation_history = []
 
     def close(self):
+        """Fecha a conexão com o banco de dados ao encerrar a aplicação."""
         self.db.closeConnection()
 
+    def save_conversation(self, user_id, user_message, response):
+        """Salva a conversa e atualiza o modelo."""
+        self.db.salvarConversa(user_id, user_message, response)  # Salva no banco
+        self.neuralNetwork.learn(user_id, user_message, response)  # Atualiza o modelo
     def loadingScreen(self):
         """Exibe a tela de carregamento."""
         self.imagePath = "../Imagens/BaymaxOi.png"
@@ -584,7 +638,11 @@ class Inicial:
 
     def initializeModel(self):
         """Configura o modelo de IA com a API do Gemini."""
-        genai.configure(api_key="AIzaSyCk-u-JNCWlX0-G5omIdhictzVNW8bEZbM")  # Substitua pela sua chave API real
+        try:
+            genai.configure(api_key="AIzaSyCk-u-JNCWlX0-G5omIdhictzVNW8bEZbM")  # Substitua pela sua chave API real
+        except Exception as e:
+            print(f"Erro ao configurar a API do Gemini: {e}")
+            return None  # Retorna None se a configuração falhar
 
         # Lendo o arquivo .txt com a configuração do system_instruction
         try:
@@ -595,63 +653,82 @@ class Inicial:
             print("Arquivo 'system_instruction.txt' não encontrado. Usando instrução padrão.")
         except UnicodeDecodeError as e:
             print(f"Erro ao ler o arquivo: {e}")
-            system_instruction = "default_instruction"  # Defina uma instrução padrão ou trate o erro de outra forma
+            system_instruction = "default_instruction"  # Instrução padrão em caso de erro
 
         # Configuração do modelo
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            generation_config={
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "top_k": 50,
-                "max_output_tokens": 1024,
-                "response_mime_type": "text/plain",
-            },
-            system_instruction=system_instruction   # Usando a instrução do arquivo
-        )
-        return model
+        try:
+            model = genai.GenerativeModel(
+                model_name="gemini-1.5-flash",
+                generation_config={
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "top_k": 50,
+                    "max_output_tokens": 1024,
+                    "response_mime_type": "text/plain",
+                },
+                system_instruction=system_instruction  # Usando a instrução do arquivo
+            )
+            return model
+        except Exception as e:
+            print(f"Erro ao inicializar o modelo: {e}")
+            return None
 
-    def initializeNeuralNetworkModel(self):
+    def initializeNeuralNetworkModel():
         """Inicializa a rede neural para aprendizado contínuo."""
         os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
         model = Sequential()
-        model.add(Input(shape=(10,)))  # Ajuste o tamanho da entrada conforme o seu problema
+        model.add(Input(shape=(128,)))  # Ajuste o tamanho da entrada conforme o seu problema
         model.add(Dense(64, activation='relu'))
         model.add(Dense(32, activation='relu'))
         model.add(Dense(1, activation='linear'))  # Ajuste conforme o tipo de saída (regressão ou classificação)
 
         # Compilar o modelo
-        model.compile(optimizer='adam', loss='mean_squared_error', metrics=['accuracy'])
+        model.compile(optimizer='adam', loss='mean_squared_error',
+                      metrics=['mae'])  # Use Mean Absolute Error para melhor interpretação
         return model
 
     def fetchTrainingData(self):
         """Busca os dados de treinamento do banco de dados."""
         query = "SELECT * FROM usuario"  # Ajuste a consulta conforme necessário
-        self.db.cursor.execute(query)
-        result = self.db.cursor.fetchall()
 
-        # Processar os dados para treinar a rede neural
-        data = []
-        labels = []
-        for row in result:
-            # Extraia as características dos dados e os rótulos
-            # Exemplo: data.append([feature1, feature2, ...]), labels.append(target)
-            pass  # Substitua por seu código para processar as linhas
+        try:
+            cursor = self.db.connection.cursor()  # Use a conexão do banco de dados
+            cursor.execute(query)
+            result = cursor.fetchall()
 
-        return data, labels
+            # Processar os dados para treinar a rede neural
+            data = []
+            labels = []
+            for row in result:
+                # Supondo que row[1] seja a característica e row[2] o rótulo
+                data.append([row[1]])  # Substitua por suas características
+                labels.append(row[2])  # Substitua pelo rótulo correspondente
+
+            return np.array(data), np.array(labels)  # Retorna como arrays NumPy
+        except mysql.connector.Error as e:
+            print(f"Erro ao buscar dados do banco: {e}")
+            return None, None  # Retorna None se houver erro
 
     def trainNeuralNetwork(self, data, labels):
         """Treina a rede neural com os dados fornecidos."""
+        if data is None or labels is None:
+            print("Dados ou rótulos inválidos. O treinamento não pode prosseguir.")
+            return None
+
         model = self.initializeNeuralNetworkModel()
-        # Converta seus dados e rótulos para numpy arrays
-        data = np.array(data)
-        labels = np.array(labels)
+        if model is None:
+            print("Modelo de rede neural não foi inicializado.")
+            return None
 
         # Treine a rede neural
-        model.fit(data, labels, epochs=10, batch_size=32)  # Ajuste os parâmetros conforme necessário
-
-        # Retorne o modelo treinado
-        return model
+        try:
+            model.fit(data, labels, epochs=10, batch_size=32)  # Ajuste os parâmetros conforme necessário
+            print("Rede neural treinada com sucesso.")
+            return model  # Retorne o modelo treinado
+        except Exception as e:
+            print(f"Erro ao treinar a rede neural: {e}")
+            return None
 
     def routeChange(self, route_event_or_str):
         """Atualiza a view de acordo com a rota."""
@@ -770,12 +847,6 @@ class Inicial:
             print(f"Ocorreu um erro: {e}")
 
 
-    def trainNeuralNetwork(self):
-        """Treina a rede neural com dados de entrada e saída do chat."""
-        X_train = np.array(
-            [self.prepareInputData(msg['user']) for msg in self.conversation_history])  # Dados de entrada
-        y_train = np.array([self.prepareOutputData(msg['baymax']) for msg in self.conversation_history])  # Saídas
-        self.neuralNetwork.trainModel(X_train, y_train)
 
     def prepareInputData(self, message):
         """Transforma a mensagem do usuário em dados numéricos para o treinamento."""
@@ -786,7 +857,6 @@ class Inicial:
         """Transforma a resposta do Baymax em dados numéricos para o treinamento."""
         # Esta função precisa ser personalizada conforme a natureza dos dados
         return np.random.randint(2)  # Exemplo de saída binária (0 ou 1)
-
     def toggleVoice(self, e):
         """Ativa ou desativa a fala."""
         self.speech_enabled = not self.speech_enabled
@@ -846,18 +916,24 @@ class Inicial:
             print("Mensagem vazia, não enviando.")
             return
 
-        print(f"Enviando mensagem: {texto}")  # Debug: Mensagem do usuário
+        print(f"handleSendMessage chamado com texto: '{texto}'")  # Debug: Contagem de chamadas
+
+        # Verifica se a função está sendo chamada múltiplas vezes
+        if hasattr(self, 'sending_message') and self.sending_message:
+            print("Mensagem já em envio, evitando duplicação.")
+            return
+
+        # Marca que uma mensagem está sendo enviada
+        self.sending_message = True
 
         # Envia a mensagem e obtém a resposta
+        print(f"Enviando mensagem: {texto}")  # Debug: Mensagem do usuário
         response = self.chat.send_message(texto)
 
         # Verifica se a resposta foi recebida
         if hasattr(response, 'text'):
             resposta_texto = response.text
             print(f"Resposta do Baymax: {resposta_texto}")  # Debug: Resposta do Baymax
-
-            # Integra a rede neural para aprender com a resposta, passando o user_id
-            self.neuralNetwork.learn(self.user_id, texto, resposta_texto)  # Método adaptado para incluir o user_id
         else:
             resposta_texto = "Desculpe, não consegui entender."
 
@@ -875,10 +951,9 @@ class Inicial:
             margin=ft.margin.only(bottom=5)
         )
 
-        # Verifica se a mensagem do usuário já está no chat
-        if not any(user_bubble.content.value in control.content.value for control in self.chat_box.controls):
-            self.chat_box.controls.append(user_bubble)
-            print("Mensagem do usuário adicionada ao chat.")  # Debug: Confirmação da mensagem do usuário
+        # Adiciona a mensagem do usuário ao chat
+        self.chat_box.controls.append(user_bubble)
+        print("Mensagem do usuário adicionada ao chat.")  # Debug: Confirmação da mensagem do usuário
 
         # Remover a mensagem "Baymax está digitando..." se existir
         if hasattr(self, 'typing_message'):
@@ -896,9 +971,8 @@ class Inicial:
         )
 
         # Adiciona a mensagem do Baymax ao chat
-        if not any(baymax_bubble.content.value in control.content.value for control in self.chat_box.controls):
-            self.chat_box.controls.append(baymax_bubble)
-            print("Mensagem do Baymax adicionada ao chat.")  # Debug: Confirmação da mensagem do Baymax
+        self.chat_box.controls.append(baymax_bubble)
+        print("Mensagem do Baymax adicionada ao chat.")  # Debug: Confirmação da mensagem do Baymax
 
         # Limpa o campo de entrada
         self.message_input.value = ""
@@ -906,12 +980,11 @@ class Inicial:
         # Atualiza a página para refletir as novas mensagens
         self.page.update()
 
-    def coletarFeedback(self, usuario_id):
-        """Coleta feedback do usuário sobre a resposta do Baymax."""
-        feedback = input("A resposta do Baymax foi útil? (útil/não útil): ")
+        # Faz o Baymax falar a resposta
+        self.speak(resposta_texto)  # Chama o método para fazer o Baymax falar
 
-        # Você pode adicionar lógica para lidar com respostas inválidas
-        self.db.salvarFeedback(usuario_id, feedback)
+        # Marca que o envio foi concluído
+        self.sending_message = False
 
     def salvarFeedback(self, idConversa, avaliacao):
         """Salva o feedback no banco de dados."""
