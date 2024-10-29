@@ -10,39 +10,57 @@ import speech_recognition as sr
 import mysql.connector
 from mysql.connector import Error
 from keras import Sequential
-from tensorflow.keras.models import Sequential
+from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
-from tensorflow.keras.layers import Input, Dense
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Input
+
 
 
 class Database:
-    def __init__(self, host='localhost', user='root', password='', database='baymax'):
-        self.host = host
+    def __init__(self, user, password):
+        self.connection = None
+        self.cursor = None
         self.user = user
         self.password = password
-        self.database = database
-        self.connection = None
+        self.createConnection()  # Tente criar a conexão ao inicializar a classe
 
     def createConnection(self):
-        """Cria uma conexão com o banco de dados MySQL."""
+        """Cria uma nova conexão com o banco de dados."""
         try:
             self.connection = mysql.connector.connect(
-                host=self.host,
+                host='localhost',
                 user=self.user,
                 password=self.password,
-                database=self.database
+                database='baymax'
             )
             if self.connection.is_connected():
-                print(f"Conexão com o banco de dados '{self.database}' foi bem-sucedida.")
+                self.cursor = self.connection.cursor()
+                print("Conexão com o banco de dados 'baymax' foi bem-sucedida.")
         except Error as e:
-            print(f"Erro ao conectar ao MySQL: {e}")
-            self.connection = None
+            print(f"Erro ao conectar ao banco de dados: {e}")
 
     def closeConnection(self):
         """Fecha a conexão com o banco de dados."""
-        if self.connection and self.connection.is_connected():
+        if self.cursor:
+            self.cursor.close()
+        if self.connection:
             self.connection.close()
-            print("Conexão com o banco de dados fechada.")
+        print("Conexão com o banco de dados fechada.")
+
+    def buscarHistoricoUsuario(self, usuario_id):
+        """Busca o histórico de conversas de um usuário específico."""
+        self._checkConnection()
+        try:
+            self.cursor.execute(
+                "SELECT mensagemUsuario, respostaBaymax FROM conversa WHERE idUsuario = %s ORDER BY dataHora DESC",
+                (usuario_id,)
+            )
+            resultados = self.cursor.fetchall()
+            return [{'mensagem': row[0], 'resposta': row[1]} for row in resultados]
+        except Exception as e:
+            print(f"Erro ao buscar histórico: {e}")
+            return []
 
     def _checkConnection(self):
         """Verifica se a conexão com o banco de dados está ativa."""
@@ -63,63 +81,83 @@ class Database:
 
     def readUserByEmail(self, email):
         """Lê um usuário do banco de dados pelo email."""
+        self._checkConnection()
         try:
-            cursor = self.connection.cursor()
-            comando = 'SELECT * FROM usuario WHERE email = %s'
-            cursor.execute(comando, (email,))
-            resultado = cursor.fetchone()
-            return resultado
+            with self.connection.cursor() as cursor:
+                comando = 'SELECT * FROM usuario WHERE email = %s'
+                cursor.execute(comando, (email,))
+                resultado = cursor.fetchone()
+                return resultado
         except Error as e:
             print(f"Erro ao ler usuário: {e}")
             return None
-        finally:
-            cursor.close()
 
     def updateUser(self, emailAntigo, emailNovo, senhaNova, nomeCompletoNovo, telefoneNovo):
         """Atualiza um usuário existente no banco de dados."""
         self._checkConnection()
         try:
-            cursor = self.connection.cursor()
-            comando = 'UPDATE usuario SET email = %s, senha = %s, nomeCompleto = %s, telefone = %s WHERE email = %s'
-            cursor.execute(comando, (emailNovo, senhaNova, nomeCompletoNovo, telefoneNovo, emailAntigo))
-            self.connection.commit()
-            print(f"Usuário '{emailAntigo}' atualizado para '{emailNovo}'.")
+            with self.connection.cursor() as cursor:
+                comando = 'UPDATE usuario SET email = %s, senha = %s, nomeCompleto = %s, telefone = %s WHERE email = %s'
+                cursor.execute(comando, (emailNovo, senhaNova, nomeCompletoNovo, telefoneNovo, emailAntigo))
+                self.connection.commit()
+                print(f"Usuário '{emailAntigo}' atualizado para '{emailNovo}'.")
         except Error as e:
             print(f"Erro ao atualizar usuário: {e}")
-        finally:
-            cursor.close()
 
     def deleteUser(self, email):
         """Deleta um usuário do banco de dados."""
         self._checkConnection()
         try:
-            cursor = self.connection.cursor()
-            comando = 'DELETE FROM usuario WHERE email = %s'
-            cursor.execute(comando, (email,))
-            self.connection.commit()
-            print(f"Usuário '{email}' deletado com sucesso.")
+            with self.connection.cursor() as cursor:
+                comando = 'DELETE FROM usuario WHERE email = %s'
+                cursor.execute(comando, (email,))
+                self.connection.commit()
+                print(f"Usuário '{email}' deletado com sucesso.")
         except Error as e:
             print(f"Erro ao deletar usuário: {e}")
-        finally:
-            cursor.close()
 
-    def salvarConversa(self, idUsuario, mensagemUsuario, respostaBaymax):
+    def salvarConversa(self, usuario_id, mensagem_usuario, resposta_baymax):
         """Salva a conversa no banco de dados."""
         self._checkConnection()
         try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO conversa (idUsuario, mensagemUsuario, respostaBaymax, dataHora) VALUES (%s, %s, %s, NOW())",
+                    (usuario_id, mensagem_usuario, resposta_baymax)
+                )
+                self.connection.commit()  # Certifique-se de que as alterações estão sendo salvas
+                print("Conversa salva com sucesso.")
+        except Exception as e:
+            print(f"Erro ao salvar conversa: {e}")  # Certifique-se de que este parêntese esteja fechado
+
+    def buscarResposta(self, usuario_id, texto):
+        """Busca uma resposta já existente no banco de dados com base no texto fornecido."""
+        try:
             cursor = self.connection.cursor()
-            query = """
-                INSERT INTO conversa (idUsuario, mensagemUsuario, respostaBaymax)
-                VALUES (%s, %s, %s)
-            """
-            valores = (idUsuario, mensagemUsuario, respostaBaymax)
-            cursor.execute(query, valores)
-            self.connection.commit()  # Confirma a transação
-            print("Conversa salva no banco de dados com sucesso!")
-        except Error as e:
-            print(f"Erro ao salvar conversa no banco de dados: {e}")
-        finally:
-            cursor.close()
+            # Ajuste a consulta SQL conforme a estrutura da sua tabela
+            query = "SELECT respostaBaymax FROM conversa WHERE idUsuario = %s AND mensagemUsuario = %s"
+            cursor.execute(query, (usuario_id, texto))
+            resultado = cursor.fetchone()
+            cursor.fetchall()  # Limpa resultados não lidos
+            return resultado[0] if resultado else None  # Retorna a resposta se encontrada, ou None
+        except Exception as e:
+            print(f"Erro ao buscar resposta no banco de dados: {e}")
+            return None
+
+    def verificarDuplicata(self, usuario_id, mensagem_usuario, resposta_baymax):
+        """Verifica se já existe uma entrada igual na tabela de conversas."""
+        self._checkConnection()
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM conversa WHERE idUsuario = %s AND mensagemUsuario = %s AND respostaBaymax = %s",
+                    (usuario_id, mensagem_usuario, resposta_baymax)
+                )
+                count = cursor.fetchone()[0]
+                return count > 0  # Retorna True se houver duplicata
+        except Exception as e:
+            print(f"Erro ao verificar duplicata: {e}")
+            return False  # Em caso de erro, assume que não há duplicata
 
 
 class NeuralNetwork:
@@ -131,46 +169,40 @@ class NeuralNetwork:
         self.message_pool = []  # Para armazenar mensagens
 
     def createModel(self, user_id):
+        """Cria e compila um novo modelo de rede neural para um usuário específico."""
         model = Sequential()
         model.add(Input(shape=(128,)))  # Mantenha a forma de entrada
         model.add(Dense(64, activation='relu'))
         model.add(Dense(32, activation='relu'))
         model.add(Dense(1, activation='sigmoid'))  # Use sigmoid para saída binária
-
         model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
         return model
 
     def encode_message(self, message):
         """Codifica a mensagem usando o vectorizer, se já estiver ajustado."""
-        if len(self.message_pool) < 30:  # Use o mesmo número mínimo
+        if len(self.message_pool) < 30:  # Número mínimo para ajuste do vectorizer
             raise ValueError("O vectorizer não foi ajustado porque há menos de 30 mensagens.")
         return self.vectorizer.transform([message]).toarray()
 
     def learn(self, user_id, user_message, response):
-        """Adiciona um par de mensagem-resposta aos dados de conversação e treina o modelo do usuário."""
+        """Adiciona um par de mensagem-resposta aos dados e treina o modelo do usuário."""
         if user_id not in self.conversation_data:
-            self.conversation_data[user_id] = []  # Inicializa a lista para o novo usuário
+            self.conversation_data[user_id] = []
 
         self.conversation_data[user_id].append((user_message, response))
+        self.message_pool.append(user_message)
 
-        # Atualiza o pool de mensagens e ajusta o vectorizer se necessário
-        self.message_pool.append(user_message)  # Adiciona a mensagem ao pool
+        self.vectorizer.fit(self.message_pool)
+        print(f"Vectorizer ajustado com {len(self.message_pool)} mensagens.")
 
-        # Verifica se o número de mensagens é suficiente
-        if len(self.message_pool) >= 30:  # Ajustado para 30 mensagens
-            self.vectorizer.fit(self.message_pool)  # Ajusta o vectorizer
-        else:
-            print(f"Aguardando mais mensagens para ajustar o vectorizer. Mensagens atuais: {len(self.message_pool)}")
+        X = np.array([self.encode_message(msg) for msg in self.message_pool])
+        y = np.array([1 if res.lower() == "útil" else 0 for _, res in self.conversation_data[user_id]])
 
-        # Codifica a mensagem, se o vectorizer foi ajustado
-        if len(self.message_pool) >= 30:
-            X = np.array([self.encode_message(user_message)])  # Codifica a mensagem
-            y = np.array([1 if response.lower() == "útil" else 0])  # Usa 'útil' como rótulo
+        self.trainNeuralNetwork(X, y)
 
-            # Treina o modelo para o usuário específico
-            self.trainModel(user_id, X, y)
 
     def trainModel(self, user_id, X, y):
+        """Treina o modelo para o usuário específico."""
         print(f"Forma de X antes do treinamento: {X.shape}")
         print(f"Forma de y antes do treinamento: {y.shape}")
 
@@ -182,26 +214,23 @@ class NeuralNetwork:
         self.models[user_id] = model  # Armazena o modelo após o treinamento
 
     def fitVectorizer(self, training_data):
-        """Ajusta o vectorizer com dados de treinamento."""
+        """Ajusta o vectorizer com dados de treinamento fornecidos."""
         self.vectorizer.fit(training_data)
 
     def processData(self, texto, resposta_texto):
-        X = self.vectorizer.transform([texto]).toarray()  # Garante que seja uma matriz 2D
-        y = np.array([1 if resposta_texto.lower() == "útil" else 0])  # Mapear resposta
+        """Processa os dados de entrada e saída, garantindo a forma correta para o treinamento."""
+        X = self.vectorizer.transform([texto]).toarray()  # Codifica a mensagem
+        y = np.array([1 if resposta_texto.lower() == "útil" else 0])  # Define o rótulo
 
-        # Asegure-se de que `X` tenha o formato correto
         print("Forma de X antes do treinamento:", X.shape)
         print("Forma de y antes do treinamento:", y.shape)
 
-        # Verifica se `y` precisa ser transformado
         if len(y.shape) == 1:
-            y = y.reshape(-1, 1)  # Transforma em uma matriz 2D
+            y = y.reshape(-1, 1)  # Transforma y em uma matriz 2D para compatibilidade
 
-        # Verifica a forma de X e y
         if X.shape[0] != y.shape[0]:
             raise ValueError("X e y devem ter o mesmo número de amostras.")
 
-        # Define expected_input_dim como 128 para compatibilidade
         expected_input_dim = 128
         if X.shape[1] != expected_input_dim:
             raise ValueError("A dimensão de entrada não é a esperada.")
@@ -209,15 +238,15 @@ class NeuralNetwork:
         return X, y
 
     def predict(self, user_id, input_message):
-        """Faz uma previsão com base na entrada do usuário usando o modelo."""
+        """Faz uma previsão com base na entrada do usuário usando o modelo do usuário específico."""
         if user_id not in self.models:
             raise ValueError("Modelo não encontrado para o usuário.")
 
         model = self.models[user_id]
         X = self.encode_message(input_message)  # Codifica a mensagem
         prediction = model.predict(X)
-
         return "útil" if prediction[0][0] >= 0.5 else "não útil"
+
 
 class Inicial:
     def __init__(self, page):
@@ -225,9 +254,15 @@ class Inicial:
         self.model = self.initializeModel()
         self.chat = self.model.start_chat(history=[])
         self.recentMessages = []
-        self.buildChatView()
+        self.neural_network = NeuralNetwork()  # Inicializando a rede neural
+        self.user_id = 1  # ID do usuário, por exemplo
+
+        # Inicializando chat_box antes de chamá-lo em buildChatView
+        self.chat_box = ft.Column(scroll="auto", expand=True, alignment=ft.MainAxisAlignment.START, spacing=10)
+
+        self.buildChatView()  # Agora você pode chamar esse método aqui
         self.buildHomeView()
-        self.chat_box = ft.Column()
+
         self.lock = threading.Lock()
         self.typing_message = None
         self.tts_engine = pyttsx3.init()
@@ -245,14 +280,17 @@ class Inicial:
         self.loadingScreen()
         self.conversation_history = []
 
+        # Se o ID do usuário estiver definido, busque o histórico de conversas
+        if self.user_id is not None:  # Verifica se o user_id não é None
+            historico = self.db.buscarHistoricoUsuario(self.user_id)
+            for h in historico:
+                self.recentMessages.append(h)
+
     def close(self):
         """Fecha a conexão com o banco de dados ao encerrar a aplicação."""
         self.db.closeConnection()
 
-    def save_conversation(self, user_id, user_message, response):
-        """Salva a conversa e atualiza o modelo."""
-        self.db.salvarConversa(user_id, user_message, response)  # Salva no banco
-        self.neuralNetwork.learn(user_id, user_message, response)  # Atualiza o modelo
+
     def loadingScreen(self):
         """Exibe a tela de carregamento."""
         self.imagePath = "../Imagens/BaymaxOi.png"
@@ -642,20 +680,18 @@ class Inicial:
             genai.configure(api_key="AIzaSyCk-u-JNCWlX0-G5omIdhictzVNW8bEZbM")  # Substitua pela sua chave API real
         except Exception as e:
             print(f"Erro ao configurar a API do Gemini: {e}")
-            return None  # Retorna None se a configuração falhar
+            return None
 
-        # Lendo o arquivo .txt com a configuração do system_instruction
         try:
             with open("system_instruction.txt", "r", encoding="utf-8") as file:
-                system_instruction = file.read().strip()
+                self.system_instruction = file.read().strip()
         except FileNotFoundError:
-            system_instruction = "default_instruction"  # Instrução padrão caso o arquivo não seja encontrado
+            self.system_instruction = "default_instruction"
             print("Arquivo 'system_instruction.txt' não encontrado. Usando instrução padrão.")
         except UnicodeDecodeError as e:
             print(f"Erro ao ler o arquivo: {e}")
-            system_instruction = "default_instruction"  # Instrução padrão em caso de erro
+            self.system_instruction = "default_instruction"
 
-        # Configuração do modelo
         try:
             model = genai.GenerativeModel(
                 model_name="gemini-1.5-flash",
@@ -666,49 +702,45 @@ class Inicial:
                     "max_output_tokens": 1024,
                     "response_mime_type": "text/plain",
                 },
-                system_instruction=system_instruction  # Usando a instrução do arquivo
+                system_instruction=self.system_instruction
             )
             return model
         except Exception as e:
             print(f"Erro ao inicializar o modelo: {e}")
             return None
 
-    def initializeNeuralNetworkModel():
+    def initializeNeuralNetworkModel(self):
         """Inicializa a rede neural para aprendizado contínuo."""
         os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
         model = Sequential()
-        model.add(Input(shape=(128,)))  # Ajuste o tamanho da entrada conforme o seu problema
+        model.add(Input(shape=(128,)))  # Ajuste o tamanho da entrada conforme necessário
         model.add(Dense(64, activation='relu'))
         model.add(Dense(32, activation='relu'))
-        model.add(Dense(1, activation='linear'))  # Ajuste conforme o tipo de saída (regressão ou classificação)
+        model.add(Dense(1, activation='linear'))
 
-        # Compilar o modelo
-        model.compile(optimizer='adam', loss='mean_squared_error',
-                      metrics=['mae'])  # Use Mean Absolute Error para melhor interpretação
+        model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mae'])
         return model
 
     def fetchTrainingData(self):
         """Busca os dados de treinamento do banco de dados."""
-        query = "SELECT * FROM usuario"  # Ajuste a consulta conforme necessário
+        query = "SELECT * FROM usuario"
 
         try:
-            cursor = self.db.connection.cursor()  # Use a conexão do banco de dados
+            cursor = self.db.connection.cursor()
             cursor.execute(query)
             result = cursor.fetchall()
 
-            # Processar os dados para treinar a rede neural
             data = []
             labels = []
             for row in result:
-                # Supondo que row[1] seja a característica e row[2] o rótulo
                 data.append([row[1]])  # Substitua por suas características
                 labels.append(row[2])  # Substitua pelo rótulo correspondente
 
-            return np.array(data), np.array(labels)  # Retorna como arrays NumPy
+            return np.array(data), np.array(labels)
         except mysql.connector.Error as e:
             print(f"Erro ao buscar dados do banco: {e}")
-            return None, None  # Retorna None se houver erro
+            return None, None
 
     def trainNeuralNetwork(self, data, labels):
         """Treina a rede neural com os dados fornecidos."""
@@ -721,11 +753,10 @@ class Inicial:
             print("Modelo de rede neural não foi inicializado.")
             return None
 
-        # Treine a rede neural
         try:
-            model.fit(data, labels, epochs=10, batch_size=32)  # Ajuste os parâmetros conforme necessário
+            model.fit(data, labels, epochs=10, batch_size=32)
             print("Rede neural treinada com sucesso.")
-            return model  # Retorne o modelo treinado
+            return model
         except Exception as e:
             print(f"Erro ao treinar a rede neural: {e}")
             return None
@@ -780,7 +811,6 @@ class Inicial:
 
     def buildChatView(self):
         """Constrói a interface do chat com balões de fala."""
-        self.chat_box = ft.Column(scroll="auto", expand=True, alignment=ft.MainAxisAlignment.START, spacing=10)
         self.message_input = ft.TextField(hint_text="Digite sua mensagem...", expand=True, on_submit=self.sendMessage)
 
         # Botão para ativar/desativar a fala
@@ -822,7 +852,6 @@ class Inicial:
             )
         )
         self.page.update()
-
 
     def recognizeSpeech(self):
         """Reconhece a fala e envia como mensagem."""
@@ -918,14 +947,6 @@ class Inicial:
 
         print(f"handleSendMessage chamado com texto: '{texto}'")  # Debug: Contagem de chamadas
 
-        # Verifica se a função está sendo chamada múltiplas vezes
-        if hasattr(self, 'sending_message') and self.sending_message:
-            print("Mensagem já em envio, evitando duplicação.")
-            return
-
-        # Marca que uma mensagem está sendo enviada
-        self.sending_message = True
-
         # Envia a mensagem e obtém a resposta
         print(f"Enviando mensagem: {texto}")  # Debug: Mensagem do usuário
         response = self.chat.send_message(texto)
@@ -983,9 +1004,6 @@ class Inicial:
         # Faz o Baymax falar a resposta
         self.speak(resposta_texto)  # Chama o método para fazer o Baymax falar
 
-        # Marca que o envio foi concluído
-        self.sending_message = False
-
     def salvarFeedback(self, idConversa, avaliacao):
         """Salva o feedback no banco de dados."""
         try:
@@ -1003,24 +1021,18 @@ class Inicial:
         finally:
             cursor.close()
 
+
     def speak(self, text):
-        """Faz o Baymax falar o texto fornecido."""
+        """Faz o Baymax falar o texto fornecido, permitindo a interrupção da fala anterior."""
         if self.speech_enabled:
             try:
-                with self.lock:  # Garante acesso seguro a threads
+                with self.lock:
+                    self.tts_engine.stop()  # Interrompe a fala atual
                     self.tts_engine.say(text)
                     self.tts_engine.runAndWait()
-                    print(f"Baymax falou: {text}")
             except Exception as e:
-                print(f"Erro ao falar: {str(e)}")
-        else:
-            print("Voz desativada, não falando.")
-
-    def speak_next(self):
-        """Fala a próxima mensagem da fila, se houver."""
-        if self.speech_queue:
-            text_to_speak = self.speech_queue.pop(0)  # Remove a primeira mensagem da fila
-            self.speak(text_to_speak)  # Faz o Baymax falar
+                # Trate o erro conforme necessário
+                pass
 
     def clearChatContent(self):
         """Limpa o conteúdo do chat."""
