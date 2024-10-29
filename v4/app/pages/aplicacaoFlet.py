@@ -14,6 +14,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Input
+import difflib
+from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
+
 
 
 
@@ -144,20 +147,6 @@ class Database:
             print(f"Erro ao buscar resposta no banco de dados: {e}")
             return None
 
-    def verificarDuplicata(self, usuario_id, mensagem_usuario, resposta_baymax):
-        """Verifica se já existe uma entrada igual na tabela de conversas."""
-        self._checkConnection()
-        try:
-            with self.connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT COUNT(*) FROM conversa WHERE idUsuario = %s AND mensagemUsuario = %s AND respostaBaymax = %s",
-                    (usuario_id, mensagem_usuario, resposta_baymax)
-                )
-                count = cursor.fetchone()[0]
-                return count > 0  # Retorna True se houver duplicata
-        except Exception as e:
-            print(f"Erro ao verificar duplicata: {e}")
-            return False  # Em caso de erro, assume que não há duplicata
 
 
 class NeuralNetwork:
@@ -723,19 +712,19 @@ class Inicial:
         return model
 
     def fetchTrainingData(self):
-        """Busca os dados de treinamento do banco de dados."""
+        """Busca dados de treinamento no banco de dados com proteção contra SQL Injection."""
         query = "SELECT * FROM usuario"
 
         try:
-            cursor = self.db.connection.cursor()
+            cursor = self.db.connection.cursor(prepared=True)  # Usar 'prepared=True' para parametrização
             cursor.execute(query)
             result = cursor.fetchall()
 
             data = []
             labels = []
             for row in result:
-                data.append([row[1]])  # Substitua por suas características
-                labels.append(row[2])  # Substitua pelo rótulo correspondente
+                data.append([row[1]])  # Ajuste conforme necessário
+                labels.append(row[2])  # Ajuste conforme necessário
 
             return np.array(data), np.array(labels)
         except mysql.connector.Error as e:
@@ -743,7 +732,7 @@ class Inicial:
             return None, None
 
     def trainNeuralNetwork(self, data, labels):
-        """Treina a rede neural com os dados fornecidos."""
+        """Treina a rede neural e aplica callbacks para melhor eficiência."""
         if data is None or labels is None:
             print("Dados ou rótulos inválidos. O treinamento não pode prosseguir.")
             return None
@@ -754,8 +743,21 @@ class Inicial:
             return None
 
         try:
-            model.fit(data, labels, epochs=10, batch_size=32)
-            print("Rede neural treinada com sucesso.")
+            print("Iniciando o treinamento da rede neural...")
+
+            # Callbacks para ajuste automático da taxa de aprendizado e para salvar o melhor modelo
+            reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.2, patience=3, min_lr=0.001, verbose=1)
+            checkpoint = ModelCheckpoint('melhor_modelo.h5', monitor='loss', save_best_only=True, verbose=1)
+
+            # Callback para log de cada época
+            class EpochLogger(tf.keras.callbacks.Callback):
+                def on_epoch_end(self, epoch, logs=None):
+                    print(f"Época {epoch + 1} finalizada - Loss: {logs.get('loss')}, MAE: {logs.get('mae')}")
+
+            # Treina o modelo com os callbacks para ajuste de eficiência
+            model.fit(data, labels, epochs=10, batch_size=32, callbacks=[EpochLogger(), reduce_lr, checkpoint])
+
+            print("Treinamento da rede neural concluído com sucesso.")
             return model
         except Exception as e:
             print(f"Erro ao treinar a rede neural: {e}")
@@ -911,6 +913,7 @@ class Inicial:
         self.processing_message = True
 
         try:
+            # Exibe a mensagem do usuário na interface
             user_bubble = ft.Container(
                 content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.WHITE),
                 bgcolor=ft.colors.GREEN_400,
@@ -921,6 +924,7 @@ class Inicial:
             )
             self.chat_box.controls.append(user_bubble)
 
+            # Mensagem "digitando" do Baymax
             self.typing_message = ft.Container(
                 content=ft.Text("Baymax está digitando...", size=16, color=ft.colors.YELLOW),
                 bgcolor=ft.colors.GREY,
@@ -932,6 +936,7 @@ class Inicial:
             self.chat_box.controls.append(self.typing_message)
             self.page.update()
 
+            # Chama handleSendMessage para processar a mensagem do usuário e obter resposta
             threading.Thread(target=self.handleSendMessage, args=(texto,)).start()
 
         except Exception as e:
@@ -940,7 +945,7 @@ class Inicial:
             self.processing_message = False
 
     def handleSendMessage(self, texto):
-        """Processa o envio da mensagem em uma nova thread."""
+        """Processa o envio da mensagem em uma nova thread, armazena no banco e treina a rede neural."""
         if not texto.strip():
             print("Mensagem vazia, não enviando.")
             return
@@ -958,30 +963,32 @@ class Inicial:
         else:
             resposta_texto = "Desculpe, não consegui entender."
 
-        # Salva a conversa no banco de dados
-        usuario_id = self.user_id if self.user_id else 1  # Usa o ID do usuário atual ou 1
-        self.db.salvarConversa(usuario_id, texto, resposta_texto)
+        # Verifica similaridade antes de salvar
+        if self.checkMessageSimilarity(texto):
+            # Salva a conversa no banco de dados
+            usuario_id = self.user_id if self.user_id else 1  # Usa o ID do usuário atual ou 1
+            self.db.salvarConversa(usuario_id, texto, resposta_texto)
 
-        # Adiciona a nova mensagem do usuário ao chat
-        user_bubble = ft.Container(
-            content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.BLACK),
-            bgcolor=ft.colors.LIGHT_GREEN,
-            padding=10,
-            border_radius=10,
-            alignment=ft.alignment.center_right,
-            margin=ft.margin.only(bottom=5)
-        )
-
-        # Adiciona a mensagem do usuário ao chat
-        self.chat_box.controls.append(user_bubble)
-        print("Mensagem do usuário adicionada ao chat.")  # Debug: Confirmação da mensagem do usuário
+        else:
+            print("Mensagem muito semelhante já existe no banco de dados. Não será salva.")
 
         # Remover a mensagem "Baymax está digitando..." se existir
         if hasattr(self, 'typing_message'):
             self.chat_box.controls.remove(self.typing_message)
             print("Mensagem 'Baymax está digitando...' removida.")  # Debug: Confirmação da remoção
 
-        # Adiciona a nova mensagem do Baymax ao chat
+        # Adiciona a nova mensagem do usuário ao chat
+        usuario_bubble = ft.Container(
+            content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.BLACK),
+            bgcolor=ft.colors.LIGHT_GREY,
+            padding=10,
+            border_radius=10,
+            alignment=ft.alignment.center_right,
+            margin=ft.margin.only(bottom=5)
+        )
+        self.chat_box.controls.append(usuario_bubble)
+
+        # Adiciona a nova resposta do Baymax ao chat
         baymax_bubble = ft.Container(
             content=ft.Text(f"Baymax: {resposta_texto}", size=16, color=ft.colors.WHITE),
             bgcolor=ft.colors.RED,
@@ -990,8 +997,6 @@ class Inicial:
             alignment=ft.alignment.center_left,
             margin=ft.margin.only(bottom=5)
         )
-
-        # Adiciona a mensagem do Baymax ao chat
         self.chat_box.controls.append(baymax_bubble)
         print("Mensagem do Baymax adicionada ao chat.")  # Debug: Confirmação da mensagem do Baymax
 
@@ -1003,6 +1008,30 @@ class Inicial:
 
         # Faz o Baymax falar a resposta
         self.speak(resposta_texto)  # Chama o método para fazer o Baymax falar
+
+        # Treinamento da rede neural com a nova mensagem
+        data, labels = self.fetchTrainingData()  # Busca os dados de treinamento
+        if data is not None and labels is not None:
+            self.trainNeuralNetwork(data, labels)  # Treina a rede neural com os dados atualizados
+
+    def checkMessageSimilarity(self, message):
+        """Verifica se a mensagem é parecida com as últimas 5 mensagens no banco de dados."""
+        query = "SELECT mensagemUsuario FROM conversa ORDER BY id DESC LIMIT 5"  # Atualizando o nome da coluna
+
+        try:
+            cursor = self.db.connection.cursor(prepared=True)
+            cursor.execute(query)
+            recent_messages = cursor.fetchall()
+
+            for recent in recent_messages:
+                similarity = difflib.SequenceMatcher(None, message, recent[0]).ratio()
+                if similarity > 0.8:  # Ajuste o limite conforme desejado
+                    print("Mensagem similar encontrada. Evitando salvar mensagem duplicada.")
+                    return False
+            return True
+        except Exception as e:
+            print(f"Erro ao verificar similaridade de mensagens: {e}")
+            return True
 
     def salvarFeedback(self, idConversa, avaliacao):
         """Salva o feedback no banco de dados."""
