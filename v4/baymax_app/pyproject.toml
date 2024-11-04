@@ -1,0 +1,28 @@
+[build-system]
+requires = ["briefcase"]
+build-backend = "briefcase"
+
+[project]
+name = "baymax"
+version = "0.0.1"
+description = "Baymax é um assistente virtual e sistema de gestão desenvolvido para o campus Senac."
+author = "Seu Nome"  # Coloque seu nome ou nome da sua empresa
+author-email = "baymaxprojeto@gmail.com"
+readme = "README.md"  # Se você tiver um arquivo README.md
+license = "MIT"
+homepage = "https://github.com/TumTumg/ProjetoBaymax/tree/v4/v4/app/pages"
+
+[tool.briefcase]
+gui = "kivy"  # Altere de "toga" para "kivy"
+formal_name = "BAYMAX"
+bundle = "com.projetobaymax"
+source = "app/pages/main.py"  # Caminho para o seu arquivo main.py
+
+[tool.briefcase.android]
+package_name = "com.projetobaymax"
+
+[tool.briefcase.metadata]
+project_name = "PROJETOBAYMAX"
+description = "Baymax é um assistente virtual e sistema de gestão desenvolvido para o campus Senac."
+application_url = "https://github.com/TumTumg/ProjetoBaymax/tree/v4/v4/app/pages"
+license = "MIT"

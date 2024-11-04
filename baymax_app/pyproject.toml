@@ -1,0 +1,96 @@
+# This project was generated with 0.3.20 using template: https://github.com/beeware/briefcase-template@v0.3.20
+[tool.briefcase]
+project_name = "PROJETOBAYMAX"
+bundle = "com.projetobaymax"
+version = "0.0.1"
+url = "https://github.com/TumTumg/ProjetoBaymax/tree/v4/v4/app/pages"
+license.file = "LICENSE"
+author = "Baymax é um assistente virtual e sistema de gestão desenvolvido para o campus Senac. Com uma interface intuitiva e avançada tecnologia de interação por voz, Baymax serve como um hub central de informações e suporte para alunos, professores e visitantes. Ele facilita a navegação pelo campus, orienta sobre cursos e eventos, gerencia o calendário acadêmico e de eventos, e fornece dados sobre salas, professores e instalações em tempo real. Baymax também integra APIs para fornecer dados úteis, como informações climáticas e de transporte, enquanto mantém a segurança dos dados com medidas robustas contra ameaças digitais."
+author_email = "baymaxprojeto@gmail.com"
+
+[tool.briefcase.app.baymax_app]
+formal_name = "BAYMAX"
+description = "My first application"
+long_description = """More details about the app should go here.
+"""
+sources = [
+    "src/baymax_app",
+]
+test_sources = [
+    "tests",
+]
+
+requires = [
+    "pygame~=2.6",
+]
+test_requires = [
+    "pytest",
+]
+
+[tool.briefcase.app.baymax_app.macOS]
+universal_build = true
+requires = [
+    "std-nslog~=1.0.3",
+]
+
+[tool.briefcase.app.baymax_app.linux]
+requires = [
+]
+
+[tool.briefcase.app.baymax_app.linux.system.debian]
+system_requires = [
+]
+
+system_runtime_requires = [
+]
+
+[tool.briefcase.app.baymax_app.linux.system.rhel]
+system_requires = [
+]
+
+system_runtime_requires = [
+]
+
+[tool.briefcase.app.baymax_app.linux.system.suse]
+system_requires = [
+]
+
+system_runtime_requires = [
+]
+
+[tool.briefcase.app.baymax_app.linux.system.arch]
+system_requires = [
+]
+
+system_runtime_requires = [
+]
+
+[tool.briefcase.app.baymax_app.linux.appimage]
+manylinux = "manylinux_2_28"
+
+system_requires = [
+]
+
+linuxdeploy_plugins = [
+]
+
+[tool.briefcase.app.baymax_app.linux.flatpak]
+flatpak_runtime = "org.freedesktop.Platform"
+flatpak_runtime_version = "24.08"
+flatpak_sdk = "org.freedesktop.Sdk"
+
+[tool.briefcase.app.baymax_app.windows]
+requires = [
+]
+
+# Mobile deployments
+[tool.briefcase.app.baymax_app.iOS]
+supported = false
+
+[tool.briefcase.app.baymax_app.android]
+supported = false
+
+# Web deployments
+[tool.briefcase.app.baymax_app.web]
+supported = false
+

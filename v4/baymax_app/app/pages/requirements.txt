@@ -1,0 +1,9 @@
+tensorflow
+numpy
+scikit-learn
+flet
+google-generativeai
+pyttsx3
+SpeechRecognition
+mysql-connector-python
+keras
