@@ -63,6 +63,10 @@ class Database:
             self.connection.close()
         print("Conexão com o banco de dados fechada.")
 
+    def _checkConnection(self):
+        if self.connection is None or not self.connection.is_connected():
+            self.createConnection()
+
     def buscarHistoricoUsuario(self, usuario_id):
         self._checkConnection()
         try:
@@ -76,9 +80,6 @@ class Database:
             print(f"Erro ao buscar histórico: {e}")
             return []
 
-    def _checkConnection(self):
-        if self.connection is None or not self.connection.is_connected():
-            self.createConnection()
 
     def createUser(self, email, cpf, nomeCompleto, telefone, senha):
         self._checkConnection()
@@ -259,20 +260,26 @@ class NeuralNetwork:
         return "útil" if prediction[0][0] >= 0.5 else "não útil"
 
 
+
 class Inicial:
     def __init__(self, page):
         """Inicializa a aplicação Baymax com configurações essenciais de UI, modelo, banco de dados e TTS."""
         self.page = page
+        self.font_size = 16  # Defina um valor inicial para font_size
 
         # Inicialização do modelo e chat
         self.model = self.initializeModel()
         self.chat = self.model.start_chat(history=[])
         self.recentMessages = []
 
-        # Inicialização do chat_box antes de chamá-lo em buildChatView
+        # Inicialização do chat_box
         self.chat_box = ft.Column(scroll="auto", expand=True, alignment=ft.MainAxisAlignment.START, spacing=10)
         self.buildChatView()  # Constrói a interface do chat
         self.buildHomeView()  # Constrói a interface inicial
+
+        # Variáveis para armazenar o texto do feedback e a avaliação selecionada
+        self.feedbackText = ""
+        self.avaliacao = ""
 
         # Inicialização da rede neural e configurações de TTS
         self.neural_network = NeuralNetwork()
@@ -280,31 +287,28 @@ class Inicial:
         self.tts_engine = pyttsx3.init()
         self.speech_enabled = True
         self.speech_queue = Queue()
-        self.speech_queue = queue.Queue()  # Usar uma fila para controlar as falas sequencialmente
-        self.typing_message = None
 
         # Conexão com o banco de dados
         self.db = Database(user='root', password='')
         self.db.createConnection()  # Estabelece a conexão com o banco
         self.user_id = None  # ID do usuário atual, definido após login
 
-        # Configura voz do TTS (usa voz padrão se não houver masculina)
+        # Configura voz do TTS
         if not self.setVoice():
             print("Nenhuma voz masculina encontrada, utilizando a voz padrão.")
 
-        # Configura a mudança de rota e exibe a tela de carregamento
+        # Configura a mudança de rota
         self.page.on_route_change = self.routeChange
         self.loadingScreen()
 
         # Carrega o histórico de conversas do usuário (se `user_id` estiver definido)
-        self.conversation_history = []
         if self.user_id is not None:
-            historico = self.db.buscarHistoricoUsuario(self.user_id)
-            self.recentMessages.extend(historico)  # Adiciona o histórico de conversas ao `recentMessages`
+            self.loadUserHistory()
 
-    def close(self):
-        """Fecha a conexão com o banco de dados ao encerrar a aplicação."""
-        self.db.closeConnection()
+        # Inicialização da fonte padrão
+        self.font_size = 16
+        self.updateFontSize()  # Atualiza o tamanho da fonte inicialmente
+        self.loadingScreen()
 
     def loadingScreen(self):
         """Exibe a tela de carregamento."""
@@ -928,154 +932,183 @@ class Inicial:
 
     def buildAppBar(self):
         """Constrói a AppBar universal para todas as páginas com menu de configurações estilizado."""
-
         # Ícone do usuário
         user_icon = ft.IconButton(
             icon=ft.icons.ACCOUNT_CIRCLE,
-            on_click=None,  # Função fictícia temporária, deve ser implementada
+            on_click=None,
             tooltip="Perfil de Usuário"
         )
 
-        # Função de logout que redefine o estado e redireciona para a página de boas-vindas
         def logout_action(e):
             """Função de logout para redefinir o estado e redirecionar para a página de boas-vindas."""
-            print("Iniciando logout...")  # Debug: verifica se a função é chamada
-            # Limpa dados de sessão ou estado de autenticação
-            self.is_authenticated = False  # Redefine o estado de autenticação
-            self.current_user = None  # Limpa o usuário atual
-
-            # Limpa todas as visualizações da pilha
-            self.page.views.clear()  # Limpa as views
-            print("Visualizações limpas.")  # Debug
-
-            # Chama a função que constrói a página de boas-vindas
-            self.buildWelcomeView()  # Constrói a página de boas-vindas
-            print("Página de boas-vindas construída.")  # Debug
-
-            # Navega para a rota que leva à página de boas-vindas
-            self.page.go("/welcome")  # A rota que você deve ter configurado
-            print("Navegando para a página de boas-vindas.")  # Debug
-
-            self.page.update()  # Atualiza a página para refletir a nova rota
-            print("Página atualizada.")  # Debug
+            print("Iniciando logout...")
+            self.is_authenticated = False
+            self.current_user = None
+            self.page.views.clear()
+            self.buildWelcomeView()
+            self.page.go("/welcome")
+            self.page.update()
 
         def login_action(e):
             """Função de login que autentica o usuário e redireciona para a página inicial."""
-            # Aqui você deve implementar a lógica de autenticação
-            self.is_authenticated = True  # Simulação de autenticação
-            self.current_user = "Usuário Teste"  # Exemplo de usuário autenticado
-
-            # Verifica se a autenticação foi bem-sucedida e redireciona para a página inicial
+            self.is_authenticated = True
+            self.current_user = "Usuário Teste"
             if self.is_authenticated:
                 print(f"Usuário '{self.current_user}' autenticado com sucesso.")
-
-                # Limpa views antigas e navega para a página inicial
-                self.page.views.clear()  # Limpa as views
-                self.buildHomeView()  # Constrói a página inicial
-                self.page.go("/")  # Garante que a rota seja ajustada para '/'
-                self.page.update()  # Atualiza a página para refletir a nova rota
+                self.page.views.clear()
+                self.buildHomeView()
+                self.page.go("/")
+                self.page.update()
             else:
                 print("Falha na autenticação. Verifique suas credenciais.")
 
-        # Menu simplificado de configurações com ícones e textos brancos
+        # Menu de configurações com ícones e textos brancos
         settings_menu = ft.MenuBar(
             controls=[
                 ft.SubmenuButton(
-                    content=ft.Icon(ft.icons.SETTINGS, tooltip="Configurações", color=ft.colors.WHITE),  # Ícone branco
+                    content=ft.Icon(ft.icons.SETTINGS, tooltip="Configurações", color=ft.colors.WHITE),
                     controls=[
                         ft.MenuItemButton(
-                            content=ft.Text("Conta", color=ft.colors.WHITE),
-                            on_click=None  # Você pode adicionar uma função aqui
+                            content=ft.Text("Fonte", color=ft.colors.WHITE),
+                            on_click=self.openSettings
                         ),
                         ft.MenuItemButton(
-                            content=ft.Text("Alterar Senha", color=ft.colors.WHITE),
-                            on_click=None  # Você pode adicionar uma função aqui
-                        ),
-                        ft.MenuItemButton(
-                            content=ft.Text("Suporte", color=ft.colors.WHITE),
-                            on_click=None  # Você pode adicionar uma função aqui
-                        ),
-                        ft.MenuItemButton(
-                            content=ft.Text("Sair", color=ft.colors.RED),  # Botão de Sair em vermelho para destaque
-                            on_click=logout_action  # Define a função logout_action
+                            content=ft.Text("Sair", color=ft.colors.RED),
+                            on_click=logout_action
                         ),
                     ],
                 ),
             ]
         )
 
-        # AppBar com título, ícone do usuário e menu de configurações
         return ft.AppBar(
             title=ft.Text("Projeto Baymax", size=20, color=ft.colors.WHITE),
-            bgcolor=ft.colors.RED_800,  # Fundo vermelho da AppBar
+            bgcolor=ft.colors.RED_800,
             actions=[user_icon, settings_menu]
         )
 
-    def openUserProfile(self, e):
-        """Abre a página de perfil do usuário."""
-        # Lógica para abrir o perfil do usuário
-        print("Abrindo perfil do usuário...")
-
     def openSettings(self, e):
-        """Abre a página de configurações."""
-        # Lógica para abrir as configurações
+        """Abre a página de configurações com ajuste de fonte."""
         print("Abrindo configurações...")
+        settings_dialog = ft.AlertDialog(
+            title=ft.Text("Configurações", size=20, weight="bold", color=ft.colors.BLACK),
+            content=ft.Column(
+                controls=[
+                    ft.Text("Tamanho da Fonte:", size=16, color=ft.colors.BLACK),
+                    ft.Row(
+                        controls=[
+                            ft.IconButton(icon=ft.icons.REMOVE, on_click=self.decreaseFontSize),
+                            ft.Text(f"{self.font_size}px", size=16, color=ft.colors.BLACK),
+                            ft.IconButton(icon=ft.icons.ADD, on_click=self.increaseFontSize),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                ],
+                spacing=10,
+            ),
+            actions=[
+                ft.TextButton("Fechar", on_click=lambda e: self.closeSettingsDialog(settings_dialog))
+            ]
+        )
+        if settings_dialog not in self.page.overlay:
+            self.page.overlay.append(settings_dialog)
+        settings_dialog.open = True
+        self.page.update()
+
+    def closeSettingsDialog(self, settings_dialog):
+        """Fecha o diálogo de configurações e atualiza a página."""
+        settings_dialog.open = False
+        self.page.update()
+
+    def increaseFontSize(self, e):
+        """Aumenta o tamanho da fonte e atualiza a fonte da página."""
+        self.font_size += 2
+        self.updateFontSize()
+        self.page.update()
+
+    def decreaseFontSize(self, e):
+        """Diminui o tamanho da fonte e atualiza a fonte da página."""
+        if self.font_size > 8:
+            self.font_size -= 2
+            self.updateFontSize()
+            self.page.update()
+
+    def updateFontSize(self):
+        """Aplica o tamanho da fonte em todos os elementos na `buildHomeView`."""
+        for view in self.page.views:
+            for control in view.controls:
+                self.applyFontSize(control)
+
+    def applyFontSize(self, control):
+        """Aplica a fonte específica para diferentes tipos de controles."""
+        if isinstance(control, ft.Text):
+            control.size = self.font_size
+        elif isinstance(control, ft.TextField):
+            control.size = self.font_size
+        elif isinstance(control, ft.ElevatedButton):
+            control.text_style = ft.TextStyle(size=self.font_size)
+        elif isinstance(control, ft.Container) and control.content:
+            self.applyFontSize(control.content)
+        elif isinstance(control, (ft.Row, ft.Column, ft.ListView)):
+            for item in control.controls:
+                self.applyFontSize(item)
 
     def buildHomeView(self):
-        """Constrói a página inicial com a AppBar universal."""
+        """Constrói a página inicial aplicando o tamanho da fonte e deixando o contêiner se ajustar ao conteúdo automaticamente."""
         self.page.views.append(
             ft.View(
                 "/",
                 [
-                    self.buildAppBar(),  # AppBar universal reutilizável
+                    self.buildAppBar(),
                     ft.NavigationBar(
-                        bgcolor=ft.colors.RED,  # Define a cor de fundo da barra de navegação como vermelho
+                        bgcolor=ft.colors.RED,
                         destinations=[
-                            ft.NavigationBarDestination(icon=ft.icons.CHAT, label="Chat"),  # "Chat" à esquerda
-                            ft.NavigationBarDestination(icon=ft.icons.HOME, label="Home"),  # "Home" no meio
-                            ft.NavigationBarDestination(icon=ft.icons.INFO, label="Sobre"),  # "Sobre" à direita
+                            ft.NavigationBarDestination(icon=ft.icons.CHAT, label="Chat"),
+                            ft.NavigationBarDestination(icon=ft.icons.HOME, label="Home"),
+                            ft.NavigationBarDestination(icon=ft.icons.INFO, label="Sobre"),
                         ],
                         on_change=self.handleNavigation,
                     ),
-                    ft.Container(  # Container para o conteúdo principal
-                        bgcolor=ft.colors.WHITE,  # Cor de fundo da página inicial
-                        expand=True,  # Faz o container ocupar toda a tela
-                        padding=20,  # Adiciona preenchimento ao redor do conteúdo
-                        content=ft.ListView(  # Usando ListView para permitir rolagem
+                    ft.Container(
+                        bgcolor=ft.colors.WHITE,
+                        expand=True,
+                        padding=20,
+                        content=ft.ListView(
                             controls=[
-                                # Primeiro Retângulo (topo)
                                 ft.Container(
                                     content=ft.Text(
                                         "Novidades da Semana!!\nAtualizações no Software",
-                                        size=16, color=ft.colors.BLACK,  # Texto agora deve ser preto para contraste
-                                        text_align=ft.TextAlign.CENTER  # Centraliza o texto
+                                        size=self.font_size,
+                                        color=ft.colors.BLACK,
+                                        text_align=ft.TextAlign.CENTER,
+                                        no_wrap=False  # Permite o texto expandir em múltiplas linhas
                                     ),
-                                    bgcolor="#f0f0f0",  # Cor de fundo levemente mais escura
-                                    padding=20,  # Aumenta o preenchimento
+                                    bgcolor="#f0f0f0",
+                                    padding=20,
                                     margin=ft.margin.only(bottom=20),
                                     border_radius=10,
-                                    height=120,  # Aumenta a altura do retângulo para 120 pixels
-                                    alignment=ft.alignment.center,  # Centraliza o conteúdo
-                                    border=ft.border.all(2, ft.colors.RED),  # Adiciona borda vermelha
+                                    alignment=ft.alignment.center,
+                                    border=ft.border.all(2, ft.colors.RED),
+                                    expand=True  # Expande o contêiner com base no conteúdo do texto
                                 ),
-                                # Segundo Retângulo (mais abaixo)
                                 ft.Container(
                                     content=ft.Text(
                                         "EVENTOS SEMANAL:\nApresentação de PI, turma TI18N\ndas 19:30 até as 21:00, 08/11/2024",
-                                        size=16, color=ft.colors.BLACK,  # Texto agora deve ser preto para contraste
-                                        text_align=ft.TextAlign.CENTER  # Centraliza o texto
+                                        size=self.font_size,
+                                        color=ft.colors.BLACK,
+                                        text_align=ft.TextAlign.CENTER,
+                                        no_wrap=False
                                     ),
-                                    bgcolor="#f0f0f0",  # Cor de fundo levemente mais escura
-                                    padding=20,  # Aumenta o preenchimento
+                                    bgcolor="#f0f0f0",
+                                    padding=20,
                                     margin=ft.margin.only(top=20),
                                     border_radius=10,
-                                    height=120,  # Aumenta a altura do retângulo para 120 pixels
-                                    alignment=ft.alignment.center,  # Centraliza o conteúdo
-                                    border=ft.border.all(2, ft.colors.RED),  # Adiciona borda vermelha
+                                    alignment=ft.alignment.center,
+                                    border=ft.border.all(2, ft.colors.RED),
+                                    expand=True
                                 ),
-                                # Outros controles podem ser adicionados aqui se necessário
                             ],
-                            auto_scroll=True,  # Permite rolagem automática quando necessário
+                            auto_scroll=True,
                         ),
                     ),
                 ],
@@ -1150,7 +1183,6 @@ class Inicial:
             "padding": 10,
             "bgcolor": ft.colors.WHITE,  # Cor de fundo do chat
             "border_radius": 10,
-            "height": self.page.height - 150  # Ajusta a altura do container para incluir botões
         }
 
         # Adicionando a view do chat com fundo branco e AppBar universal
@@ -1213,12 +1245,11 @@ class Inicial:
         self.page.update()
 
     def buildAboutView(self):
-        """Constrói a visualização da página 'Sobre' com a AppBar universal."""
+        """Constrói a visualização da página 'Sobre' com a AppBar universal, ajustada para responsividade."""
 
         # Conteúdo da página 'Sobre'
         about_content = ft.Column(
             controls=[
-                # Título da página
                 ft.Text("Bem-vindo ao Baymax!", size=34, weight="bold", color=ft.colors.BLACK),
                 ft.Text(
                     "Baymax é um assistente virtual inovador, projetado para aprimorar a experiência dos usuários através de respostas rápidas e uma navegação intuitiva.",
@@ -1275,60 +1306,120 @@ class Inicial:
                     ),
                     color=ft.colors.RED,
                 ),
-
-                # Navegação
-                ft.NavigationBar(
-                    bgcolor=ft.colors.RED,  # Define a cor de fundo da barra de navegação como vermelho
-                    destinations=[
-                        ft.NavigationBarDestination(icon=ft.icons.CHAT, label="Chat"),
-                        ft.NavigationBarDestination(icon=ft.icons.HOME, label="Home"),
-                        ft.NavigationBarDestination(icon=ft.icons.INFO, label="Sobre"),
-                    ],
-                    on_change=self.handleNavigation,  # Chama o método handleNavigation ao mudar
-                ),
             ],
-            spacing=15,  # Espaçamento entre os elementos
+            spacing=15,
             alignment=ft.MainAxisAlignment.START,
         )
 
-        # Contêiner para o conteúdo rolável
+        # Para aplicar padding usando EdgeInsets.all():
         about_container = ft.Container(
-            content=ft.Column(controls=[about_content], scroll=ft.ScrollMode.AUTO),  # Coluna com rolagem
-            width=self.page.window.width * 0.95,  # Largura responsiva (95% da largura da janela)
-            height=self.page.window.height * 0.8,  # Altura responsiva (80% da altura da janela)
-            padding=10,
+            content=ft.Column(controls=[about_content], scroll=ft.ScrollMode.AUTO),
+            width=self.page.window.width * 0.9,
+            height=self.page.window.height * 0.7,
+            padding=ft.padding.all(10),  # Aplica padding de 10 pixels em todos os lados
             bgcolor=ft.colors.WHITE,
             border_radius=10,
-            alignment=ft.alignment.center,  # Alinhamento central
+            alignment=ft.alignment.center,
         )
 
-        # Adiciona a AppBar e o contêiner à página
+        # Container de feedback para o usuário avaliar o assistente
+        feedback_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("Avalie sua experiência:", size=18, weight="bold", color=ft.colors.BLACK),
+                    ft.RadioGroup(
+                        content=ft.Column(
+                            controls=[
+                                ft.Radio(value="útil", label="Útil"),
+                                ft.Radio(value="não útil", label="Não Útil"),
+                            ]
+                        ),
+                        on_change=lambda e: setattr(self, 'avaliacao', e.control.value)
+                    ),
+                    ft.TextField(
+                        hint_text="Descreva sua experiência...",
+                        multiline=True,
+                        on_change=lambda e: setattr(self, 'feedback_text', e.control.value)
+                    ),
+                    ft.ElevatedButton(
+                        text="Enviar Feedback",
+                        on_click=self.submitFeedback
+                    ),
+                ],
+                spacing=10
+            ),
+            width=self.page.window.width * 0.85,  # Ajusta para 85% da largura da janela
+            padding=10,
+            bgcolor=ft.colors.GREY,
+            border_radius=10,
+        )
+
+        # Adicione `feedback_container` ao `about_content`
+        about_content.controls.append(feedback_container)
+
+        # Barra de navegação fixa
+        navigation_bar = ft.NavigationBar(
+            bgcolor=ft.colors.RED,
+            destinations=[
+                ft.NavigationBarDestination(icon=ft.icons.CHAT, label="Chat"),
+                ft.NavigationBarDestination(icon=ft.icons.HOME, label="Home"),
+                ft.NavigationBarDestination(icon=ft.icons.INFO, label="Sobre"),
+            ],
+            on_change=self.handleNavigation,
+        )
+
+        # Adiciona a AppBar, contêiner de conteúdo, contêiner de feedback e barra de navegação fixa à página
         self.page.views.append(
             ft.View(
                 "/about",
                 bgcolor=ft.colors.WHITE,
                 controls=[
-                    self.buildAppBar(),  # AppBar fixa no topo
-                    about_container,  # Contêiner rolável para o conteúdo
+                    self.buildAppBar(),
+                    about_container,
+                    navigation_bar
                 ],
             )
         )
         self.page.update()
 
+    def salvarFeedback(self, idConversa, avaliacao):
+        """Salva o feedback no banco de dados."""
+        self._checkConnection()  # Verifica se a conexão está ativa
+        try:
+            with self.connection.cursor() as cursor:
+                query = """
+                    INSERT INTO feedback (idConversa, avaliacao)
+                    VALUES (%s, %s)
+                """
+                valores = (idConversa, avaliacao)
+                cursor.execute(query, valores)
+                self.connection.commit()
+                print("Feedback salvo com sucesso!")
+        except Error as e:
+            print(f"Erro ao salvar feedback: {e}")
+
+    def submitFeedback(self, e):
+        self.feedbackText = self.feedback_text.value  # Captura o valor do campo de texto
+        self.avaliacao = self.avaliacao_dropdown.value  # Captura a avaliação
+
+        print(f"Feedback Text: '{self.feedbackText}', Avaliacao: '{self.avaliacao}'")  # Verificação
+
+        if self.feedbackText and self.avaliacao:
+            idConversa = ...  # lógica para obter idConversa
+            self.db.salvarFeedback(idConversa, self.avaliacao)
+            print("Feedback enviado com sucesso!")
+        else:
+            print("Preencha as informações de feedback.")
+
     def createInfoSection(self, title, content, color):
-        """Cria uma seção informativa com título e conteúdo."""
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text(title, size=24, weight="bold", color=color),
-                    ft.Text(content, color=ft.colors.BLACK, size=16),
-                ],
-                alignment=ft.MainAxisAlignment.START,
-            ),
-            bgcolor=ft.colors.GREY,  # Cor de fundo do retângulo
-            padding=20,
-            margin=ft.margin.only(top=20, bottom=20),
-            border_radius=10,
+        """Cria uma seção de informação com título e conteúdo estilizados."""
+        return ft.Column(
+            controls=[
+                ft.Text(title, size=22, weight="bold", color=color),
+                ft.Text(content, size=16, color=ft.colors.BLACK),
+            ],
+            spacing=5,
+            alignment=ft.MainAxisAlignment.START,
         )
 
     def buildBackButton(self):
@@ -1559,23 +1650,6 @@ class Inicial:
             return False
 
         return True
-
-    def salvarFeedback(self, idConversa, avaliacao, feedbackText):
-        """Salva o feedback no banco de dados."""
-        try:
-            cursor = self.connection.cursor()
-            query = """
-                INSERT INTO feedback (idConversa, avaliacao, feedbackText)
-                VALUES (%s, %s, %s)
-            """
-            valores = (idConversa, avaliacao, feedbackText)
-            cursor.execute(query, valores)
-            self.connection.commit()
-            print("Feedback salvo com sucesso!")
-        except Error as e:
-            print(f"Erro ao salvar feedback: {e}")
-        finally:
-            cursor.close()
 
     def clearChatContent(self):
         """Limpa o conteúdo do chat."""
