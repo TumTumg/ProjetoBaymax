@@ -83,7 +83,7 @@ Baymax: Assistente Virtual e Sistema de Gestão de Campus\n"
                 "Professores e Funcionários:\n"
                 "Professor de Design: Regis Akira, trabalha no Senac SBC, e dá aula de design gráfico à noite, também custuma
                 dar a UC 14 para as turmas de TI"
-                "Professores de TI: Allan Sobral PROFESSOR DE SOFTWARE, geralmente fica na sala 406, e Ualace Lugo, PROFESSOR DE HARDWARE E REDES, que fica quase sempre na 'Borracharia'"
+                "Professores de TI: Allan Sobral PROFESSOR DE SOFTWARE, geralmente fica na sala 406, e Ualace Lugo, PROFESSOR DE HARDWARE E REDES, que fica quase sempre na 'Borracharia' (sala 105)"
                 "Nome do Professor/Funcionário: Identificador da pessoa.\n"
                 "Departamento: Setor ao qual o professor/funcionário pertence.\n"
                 "Horários de Atendimento: Horários em que estão disponíveis para consultas.

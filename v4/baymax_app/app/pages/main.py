@@ -288,6 +288,9 @@ class Inicial:
         self.speech_enabled = True
         self.speech_queue = Queue()
 
+        # **AQUI**: Definindo o atributo speech_messages
+        self.speech_messages = []  # Lista para armazenar as mensagens faladas
+
         # Conexão com o banco de dados
         self.db = Database(user='root', password='')
         self.db.createConnection()  # Estabelece a conexão com o banco
@@ -402,7 +405,7 @@ class Inicial:
                                         on_click=self.buildSignupView,
                                         bgcolor=ft.colors.RED_800,
                                         style=ft.ButtonStyle(
-                                            color=ft.colors.BLACK,
+                                            color=ft.colors.WHITE,  # Cor das letras em branco
                                             side=ft.BorderSide(3, ft.colors.BLACK),
                                         ),
                                         width=160,  # Largura reduzida em 20%
@@ -441,7 +444,7 @@ class Inicial:
                                         on_click=self.buildLoginView,
                                         bgcolor=ft.colors.RED_800,
                                         style=ft.ButtonStyle(
-                                            color=ft.colors.BLACK,
+                                            color=ft.colors.WHITE,  # Cor das letras em branco
                                             side=ft.BorderSide(3, ft.colors.BLACK),
                                         ),
                                         width=160,  # Largura reduzida em 20%
@@ -454,7 +457,7 @@ class Inicial:
                                         on_click=self.closeApp,
                                         bgcolor=ft.colors.RED_800,
                                         style=ft.ButtonStyle(
-                                            color=ft.colors.BLACK,
+                                            color=ft.colors.WHITE,  # Cor das letras em branco
                                             side=ft.BorderSide(3, ft.colors.BLACK),
                                         ),
                                         width=160,  # Largura reduzida em 20%
@@ -863,6 +866,7 @@ class Inicial:
         except Exception as e:
             print(f"Erro ao inicializar o modelo: {e}")
             return None
+
     def initializeNeuralNetworkModel(self):
         """Inicializa a rede neural para aprendizado contínuo."""
         os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -1445,13 +1449,17 @@ class Inicial:
                 texto = recognizer.recognize_google(audio, language='pt-BR')
                 print(f"Você disse: {texto}")
                 self.message_input.value = texto
-                self.sendMessage(None)  # Chama o método de envio de mensagem
+                self.sendMessageFromVoice(texto)  # Chama o método de envio de mensagem
         except sr.UnknownValueError:
             print("Não consegui entender o que você disse.")
         except sr.RequestError as e:
             print(f"Erro no serviço de reconhecimento de fala: {e}")
         except Exception as e:
             print(f"Ocorreu um erro: {e}")
+
+    def startVoiceRecognition(self, e):
+        """Inicia o reconhecimento de voz em uma thread separada."""
+        threading.Thread(target=self.recognizeSpeech).start()
 
 
 
@@ -1464,15 +1472,34 @@ class Inicial:
         """Transforma a resposta do Baymax em dados numéricos para o treinamento."""
         # Esta função precisa ser personalizada conforme a natureza dos dados
         return np.random.randint(2)  # Exemplo de saída binária (0 ou 1)
+
     def toggleVoice(self, e):
-        """Ativa ou desativa a fala."""
-        self.speech_enabled = not self.speech_enabled
-        self.voice_button.text = "Ativar Voz" if not self.speech_enabled else "Desativar Voz"
+        """Ativa ou desativa a fala do Baymax."""
+        self.speech_enabled = not self.speech_enabled  # Alterna o estado da fala
+        if self.speech_enabled:
+            self.voice_button.text = "Desativar Voz"
+        else:
+            self.voice_button.text = "Ativar Voz"
+            if hasattr(self, 'tts_engine') and self.tts_engine.isBusy():
+                # Para qualquer fala em andamento, se a voz for desativada
+                self.tts_engine.stop()
+                print("Fala interrompida.")  # Imprime apenas uma vez
         self.page.update()
 
-    def startVoiceRecognition(self, e):
-        """Inicia o reconhecimento de voz em uma thread separada."""
-        threading.Thread(target=self.recognizeSpeech).start()
+    def startSpeaking(self):
+        """Inicia a fala do Baymax."""
+        # Aqui você adiciona a lógica para começar a falar (como chamar uma função de TTS)
+        if hasattr(self, 'speech_engine'):
+            # Exemplo: se você tiver uma variável 'speech_engine' que controla o TTS
+            self.speech_engine.say("Estou pronto para ajudar!")  # Exemplo de fala inicial
+            self.speech_engine.runAndWait()
+
+    def stopSpeaking(self):
+        """Para a fala do Baymax."""
+        # Aqui você adiciona a lógica para parar a fala
+        if hasattr(self, 'speech_engine'):
+            # Se você estiver usando um mecanismo de TTS como pyttsx3, você pode parar a fala
+            self.speech_engine.stop()  # Ou qualquer comando específico para parar a fala
 
     def sendMessage(self, e):
         """Envia a mensagem do usuário e atualiza a interface."""
@@ -1519,26 +1546,69 @@ class Inicial:
         finally:
             self.processing_message = False
 
+    def sendMessageFromVoice(self, texto):
+        """Envia a mensagem do usuário reconhecida pela voz e atualiza a interface."""
+        if texto.lower() == "sair":
+            self.page.go("/")  # Sai ou faz alguma outra ação
+            return
+
+        # Verifica se há mensagem ou se já está processando uma
+        if not texto or getattr(self, 'processing_message', False):
+            return
+
+        self.processing_message = True
+
+        try:
+            # Exibe a mensagem do usuário na interface
+            user_bubble = ft.Container(
+                content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.WHITE),
+                bgcolor=ft.colors.GREEN_400,
+                padding=10,
+                border_radius=10,
+                alignment=ft.alignment.center_right,
+                margin=ft.margin.only(bottom=5)
+            )
+            self.chat_box.controls.append(user_bubble)
+
+            # Mensagem "digitando" do Baymax
+            self.typing_message = ft.Container(
+                content=ft.Text("Baymax está digitando...", size=16, color=ft.colors.YELLOW),
+                bgcolor=ft.colors.GREY,
+                padding=10,
+                border_radius=10,
+                alignment=ft.alignment.center_left,
+                margin=ft.margin.only(bottom=5)
+            )
+            self.chat_box.controls.append(self.typing_message)
+            self.page.update()
+
+            # Inicia uma nova thread para processar a mensagem do usuário e obter a resposta
+            threading.Thread(target=self.handleSendMessage, args=(texto,)).start()
+
+        except Exception as e:
+            print(f"Erro ao enviar mensagem: {e}")
+        finally:
+            self.processing_message = False
+
     def handleSendMessage(self, texto):
-        """Processa o envio da mensagem em uma nova thread, armazena no banco e treina a rede neural."""
+        """Processa o envio da mensagem e a fala, e adiciona à fila para treinamento."""
         if not isinstance(texto, str) or not texto.strip():
             print("Mensagem vazia ou não é uma string, não enviando.")
             return
 
-        print(f"handleSendMessage chamado com texto: '{texto}'")  # Debug: Contagem de chamadas
+        print(f"handleSendMessage chamado com texto: '{texto}'")
 
         # Envia a mensagem e obtém a resposta
-        print(f"Enviando mensagem: {texto}")  # Debug: Mensagem do usuário
+        print(f"Enviando mensagem: {texto}")
         response = self.chat.send_message(texto)
 
-        # Verifica se a resposta foi recebida
         resposta_texto = getattr(response, 'text', "Desculpe, não consegui entender.")
-        print(f"Resposta do Baymax: {resposta_texto}")  # Debug: Resposta do Baymax
+        print(f"Resposta do Baymax: {resposta_texto}")
 
         # Verifica similaridade antes de salvar
         if self.checkMessageSimilarity(texto):
             # Salva a conversa no banco de dados
-            usuario_id = self.user_id if self.user_id else 1  # Usa o ID do usuário atual ou 1
+            usuario_id = self.user_id if self.user_id else 1
             self.db.salvarConversa(usuario_id, texto, resposta_texto)
         else:
             print("Mensagem muito semelhante já existe no banco de dados. Não será salva.")
@@ -1546,9 +1616,9 @@ class Inicial:
         # Remove a mensagem "Baymax está digitando..." se existir
         if hasattr(self, 'typing_message'):
             self.chat_box.controls.remove(self.typing_message)
-            print("Mensagem 'Baymax está digitando...' removida.")  # Debug: Confirmação da remoção
+            print("Mensagem 'Baymax está digitando...' removida.")
 
-        # Adiciona a nova resposta do Baymax ao chat
+        # Adiciona a resposta do Baymax ao chat
         baymax_bubble = ft.Container(
             content=ft.Text(f"Baymax: {resposta_texto}", size=16, color=ft.colors.WHITE),
             bgcolor=ft.colors.RED,
@@ -1558,7 +1628,7 @@ class Inicial:
             margin=ft.margin.only(bottom=5)
         )
         self.chat_box.controls.append(baymax_bubble)
-        print("Mensagem do Baymax adicionada ao chat.")  # Debug: Confirmação da mensagem do Baymax
+        print("Mensagem do Baymax adicionada ao chat.")
 
         # Limpa o campo de entrada
         self.message_input.value = ""
@@ -1566,7 +1636,7 @@ class Inicial:
         # Atualiza a página para refletir as novas mensagens
         self.page.update()
 
-        # Adiciona a resposta à fila de fala e garante que o Baymax fale a resposta
+        # Adiciona a resposta à fila de fala
         self.addToSpeechQueue(resposta_texto)
 
         # Treinamento da rede neural com a nova mensagem
@@ -1574,35 +1644,44 @@ class Inicial:
         if data is not None and labels is not None:
             self.trainNeuralNetwork(data, labels)  # Treina a rede neural com os dados
 
+        # Verifica se a fala está em andamento e, se não, inicia a fala das mensagens
+        if not getattr(self, 'is_speaking', False):  # Se não estiver falando, começa a falar
+            self.speakNextInQueue()
+
     def addToSpeechQueue(self, text):
-        """Adiciona texto à fila de fala e inicia a fala se o Baymax não estiver falando."""
-        self.speech_queue.put(text)
-        if not getattr(self, 'is_speaking', False):  # Verifica se o TTS não está falando no momento
+        """Adiciona texto à fila de fala e inicia a fala se o Baymax não estiver falando no momento."""
+        self.speech_messages.append(text)  # Adiciona o texto diretamente na fila de fala
+        if self.speech_enabled and not getattr(self, 'is_speaking', False):  # Verifica se a voz está ativada
             self.speakNextInQueue()
 
     def speakNextInQueue(self):
-        """Faz o Baymax falar o próximo item da fila de fala, se houver."""
-        if not self.speech_queue.empty():
-            text_to_speak = self.speech_queue.get()
+        """Faz o Baymax falar o próximo item na fila de fala, se houver, aguardando o término da fala anterior."""
+        if self.speech_messages and not getattr(self, 'is_speaking', False):  # Só fala se houver mensagem na fila
+            text_to_speak = self.speech_messages.pop(0)  # Pega a primeira mensagem da fila
             self.speak(text_to_speak)
-        else:
-            self.is_speaking = False  # Define que Baymax terminou de falar
 
     def speak(self, text):
         """Faz o Baymax falar o texto fornecido e chama o próximo item na fila ao terminar."""
-        if self.speech_enabled:
+        if self.speech_enabled:  # Só fala se a voz estiver ativada
             try:
-                self.is_speaking = True  # Define que Baymax está falando
+                self.is_speaking = True  # Marca que o Baymax está falando
                 with self.lock:
-                    self.tts_engine.stop()  # Interrompe a fala atual, se houver
-                    self.tts_engine.say(text)
-                    self.tts_engine.runAndWait()
+                    if self.tts_engine.isBusy():
+                        self.tts_engine.stop()  # Interrompe qualquer fala anterior
+                        print("Fala interrompida.")  # Imprime apenas uma vez
+
+                    self.tts_engine.say(text)  # Coloca o texto na fila de fala
+                    self.tts_engine.runAndWait()  # Aguarda a fala terminar
 
                 # Após a fala atual, chama o próximo item na fila
-                self.speakNextInQueue()
+                self.is_speaking = False  # Define como não está mais falando
+                self.speakNextInQueue()  # Faz o Baymax falar a próxima mensagem
             except Exception as e:
                 print(f"Erro ao tentar falar: {e}")
-                self.is_speaking = False  # Redefine o status se houver erro
+                self.is_speaking = False  # Se houver erro, redefine o estado para não falar
+        else:
+            print("Fala desativada, não foi possível falar.")
+
 
     def checkMessageSimilarity(self, message):
         """Verifica se a mensagem é parecida com as últimas 5 mensagens no banco de dados,

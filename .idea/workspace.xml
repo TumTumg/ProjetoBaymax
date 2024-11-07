@@ -1,31 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="AutoImportSettings">
-    <option name="autoReloadType" value="NONE" />
+    <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="6b991697-9585-42ce-a058-7938df2f6266" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/v4/baymax_app/app/pages/ajustes necessários" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/ProjetoBaymax.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/ProjetoBaymax.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+    <list default="true" id="6d7f7012-8b13-43b5-8fa7-83fbd61c42b0" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/v4/baymax_app/app/pages/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/v4/baymax_app/app/pages/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/v4/baymax_app/app/pages/system_instruction.txt" beforeDir="false" afterPath="$PROJECT_DIR$/v4/baymax_app/app/pages/system_instruction.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/v4/geminiBasicoChatVoz.py" beforeDir="false" afterPath="$PROJECT_DIR$/v4/geminiBasicoChatVoz.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
-  </component>
-  <component name="ClangdSettings">
-    <option name="formatViaClangd" value="false" />
-  </component>
-  <component name="FileTemplateManagerImpl">
-    <option name="RECENT_TEMPLATES">
-      <list>
-        <option value="Python Script" />
-      </list>
-    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -42,41 +30,24 @@
     &quot;accountId&quot;: &quot;263a1a1d-ac0f-4c96-8ed7-e6c86c49c538&quot;
   }
 }</component>
-  <component name="MarkdownSettingsMigration">
-    <option name="stateVersion" value="1" />
-  </component>
   <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
   &quot;associatedIndex&quot;: 5
 }</component>
-  <component name="ProjectId" id="2o8cJWEY2Vc4gnwKGvVl9o7X9Zo" />
+  <component name="ProjectId" id="2oXBSGmeqRtvJ0DJ3WnCIHKxZHY" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Python.main.executor": "Run",
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "git-widget-placeholder": "v4",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "C:/Users/decau/PycharmProjects/ProjetoBaymax",
-    "project.structure.last.edited": "Project",
-    "project.structure.proportion": "0.15",
-    "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "reference.settingsdialog.project.grazie"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.geminiBasicoChatVoz.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;v4&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
   }
-}]]></component>
-  <component name="RecentsManager">
-    <key name="MoveFile.RECENT_KEYS">
-      <recent name="C:\Users\decau\PycharmProjects\ProjetoBaymax\v4\baymax_app" />
-      <recent name="C:\Users\decau\PycharmProjects\ProjetoBaymax\v4\app" />
-    </key>
-  </component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -87,12 +58,23 @@
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="6b991697-9585-42ce-a058-7938df2f6266" name="Changes" comment="" />
-      <created>1730254572504</created>
+      <changelist id="6d7f7012-8b13-43b5-8fa7-83fbd61c42b0" name="Changes" comment="" />
+      <created>1731006038210</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1730254572504</updated>
+      <updated>1731006038210</updated>
     </task>
     <servers />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/v4/baymax_app/app/pages/main.py</url>
+          <line>1437</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
