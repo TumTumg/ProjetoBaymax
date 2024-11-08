@@ -1,7 +1,4 @@
 import logging
-import tensorflow as tf
-import numpy as np
-from sklearn.preprocessing import LabelEncoder
 import flet as ft
 import google.generativeai as genai
 import pyttsx3
@@ -13,24 +10,6 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import speech_recognition as sr
 import mysql.connector
 from mysql.connector import Error
-from keras import Sequential
-from sklearn.preprocessing import LabelEncoder
-from sklearn.feature_extraction.text import TfidfVectorizer
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Input
-import difflib
-from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
-import nltk
-nltk.download('wordnet')
-nltk.download('punkt_tab')
-nltk.download('stopwords')
-nltk.download('punkt')
-from nltk import word_tokenize
-from nltk.corpus import stopwords
-from nltk import ngrams
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from nltk.stem import WordNetLemmatizer
 
 
 
@@ -67,20 +46,6 @@ class Database:
         if self.connection is None or not self.connection.is_connected():
             self.createConnection()
 
-    def buscarHistoricoUsuario(self, usuario_id):
-        self._checkConnection()
-        try:
-            self.cursor.execute(
-                "SELECT mensagemUsuario, respostaBaymax FROM conversa WHERE idUsuario = %s ORDER BY dataHora DESC",
-                (usuario_id,)
-            )
-            resultados = self.cursor.fetchall()
-            return [{'mensagem': row[0], 'resposta': row[1]} for row in resultados]
-        except Exception as e:
-            print(f"Erro ao buscar histórico: {e}")
-            return []
-
-
     def createUser(self, email, cpf, nomeCompleto, telefone, senha):
         self._checkConnection()
         try:
@@ -89,8 +54,10 @@ class Database:
                 cursor.execute(comando, (email, cpf, nomeCompleto, telefone, senha))
                 self.connection.commit()
                 print(f"Usuário '{nomeCompleto}' criado com sucesso.")
-        except Error as e:
+        except mysql.connector.Error as e:
             print(f"Erro ao criar usuário: {e}")
+        except Exception as e:
+            print(f"Erro inesperado ao criar usuário: {e}")
 
     def readUserByEmail(self, email):
         self._checkConnection()
@@ -127,142 +94,29 @@ class Database:
             print(f"Erro ao deletar usuário: {e}")
 
     def salvarConversa(self, usuario_id, mensagem_usuario, resposta_baymax):
+        """Salva a conversa se o `usuario_id` for válido."""
+        if usuario_id is None:
+            print("Aviso: ID do usuário está nulo, conversa não será salva.")
+            return False  # Retornando False se o ID for inválido
+
         self._checkConnection()
         try:
             with self.connection.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO conversa (idUsuario, mensagemUsuario, respostaBaymax, dataHora) VALUES (%s, %s, %s, NOW())",
+                    "INSERT INTO conversa (idUsuario, mensagemUsuario, respostaBaymax, dataHora) "
+                    "VALUES (%s, %s, %s, NOW())",
                     (usuario_id, mensagem_usuario, resposta_baymax)
                 )
                 self.connection.commit()
                 print("Conversa salva com sucesso.")
+                return True  # Retorna True se a operação for bem-sucedida
         except Exception as e:
             print(f"Erro ao salvar conversa: {e}")
-
-    def buscarResposta(self, usuario_id, texto):
-        """Busca uma resposta já existente no banco de dados com base no texto fornecido."""
-        try:
-            cursor = self.connection.cursor()
-            query = "SELECT respostaBaymax FROM conversa WHERE idUsuario = %s AND mensagemUsuario = %s"
-            cursor.execute(query, (usuario_id, texto))
-            resultado = cursor.fetchone()
-            cursor.fetchall()  # Limpa resultados não lidos
-            if resultado:
-                return resultado[0]  # Retorna a resposta se encontrada
-            else:
-                print(f"Erro: Nenhuma resposta encontrada para a mensagem '{texto}' do usuário com ID '{usuario_id}'.")
-                return None  # Retorna None se não encontrar
-        except Exception as e:
-            print(f"Erro ao buscar resposta no banco de dados: {e}")
-            return None
-
-    def obterMensagensRecentes(self, usuario_id, limite=10):
-        """Obtém as últimas mensagens de um usuário específico."""
-        self._checkConnection()
-        try:
-            self.cursor.execute(
-                "SELECT mensagemUsuario, respostaBaymax FROM conversa WHERE idUsuario = %s ORDER BY dataHora DESC LIMIT %s",
-                (usuario_id, limite)
-            )
-            resultados = self.cursor.fetchall()
-            return [{'mensagem': row[0], 'resposta': row[1]} for row in resultados]
-        except Exception as e:
-            print(f"Erro ao obter mensagens recentes: {e}")
-            return []
-
-
-
-class NeuralNetwork:
-    def __init__(self):
-        self.models = {}  # Armazena modelos para cada usuário
-        self.encoder = LabelEncoder()  # Codifica labels de saída
-        self.conversation_data = {}  # Armazena pares de entrada/saída por ID de usuário
-        self.vectorizer = TfidfVectorizer()  # Para codificação de mensagens
-        self.message_pool = []  # Para armazenar mensagens
-
-    def createModel(self, user_id):
-        """Cria e compila um novo modelo de rede neural para um usuário específico."""
-        model = Sequential()
-        model.add(Input(shape=(128,)))  # Mantenha a forma de entrada
-        model.add(Dense(64, activation='relu'))
-        model.add(Dense(32, activation='relu'))
-        model.add(Dense(1, activation='sigmoid'))  # Use sigmoid para saída binária
-        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-        return model
-
-    def encode_message(self, message):
-        """Codifica a mensagem usando o vectorizer, se já estiver ajustado."""
-        if len(self.message_pool) < 30:  # Número mínimo para ajuste do vectorizer
-            raise ValueError("O vectorizer não foi ajustado porque há menos de 30 mensagens.")
-        return self.vectorizer.transform([message]).toarray()
-
-    def learn(self, user_id, user_message, response):
-        """Adiciona um par de mensagem-resposta aos dados e treina o modelo do usuário."""
-        if user_id not in self.conversation_data:
-            self.conversation_data[user_id] = []
-
-        self.conversation_data[user_id].append((user_message, response))
-        self.message_pool.append(user_message)
-
-        self.vectorizer.fit(self.message_pool)
-        print(f"Vectorizer ajustado com {len(self.message_pool)} mensagens.")
-
-        X = np.array([self.encode_message(msg) for msg in self.message_pool])
-        y = np.array([1 if res.lower() == "útil" else 0 for _, res in self.conversation_data[user_id]])
-
-        self.trainNeuralNetwork(X, y)
-
-
-    def trainModel(self, user_id, X, y):
-        """Treina o modelo para o usuário específico."""
-        print(f"Forma de X antes do treinamento: {X.shape}")
-        print(f"Forma de y antes do treinamento: {y.shape}")
-
-        if X.shape[1] != 128:
-            raise ValueError("A dimensão de entrada não é a esperada.")
-
-        model = self.createModel(user_id)  # Criando o modelo para o usuário
-        model.fit(X, y, epochs=10, batch_size=32)  # Ajuste conforme necessário
-        self.models[user_id] = model  # Armazena o modelo após o treinamento
-
-    def fitVectorizer(self, training_data):
-        """Ajusta o vectorizer com dados de treinamento fornecidos."""
-        self.vectorizer.fit(training_data)
-
-    def processData(self, texto, resposta_texto):
-        """Processa os dados de entrada e saída, garantindo a forma correta para o treinamento."""
-        X = self.vectorizer.transform([texto]).toarray()  # Codifica a mensagem
-        y = np.array([1 if resposta_texto.lower() == "útil" else 0])  # Define o rótulo
-
-        print("Forma de X antes do treinamento:", X.shape)
-        print("Forma de y antes do treinamento:", y.shape)
-
-        if len(y.shape) == 1:
-            y = y.reshape(-1, 1)  # Transforma y em uma matriz 2D para compatibilidade
-
-        if X.shape[0] != y.shape[0]:
-            raise ValueError("X e y devem ter o mesmo número de amostras.")
-
-        expected_input_dim = 128
-        if X.shape[1] != expected_input_dim:
-            raise ValueError("A dimensão de entrada não é a esperada.")
-
-        return X, y
-
-    def predict(self, user_id, input_message):
-        """Faz uma previsão com base na entrada do usuário usando o modelo do usuário específico."""
-        if user_id not in self.models:
-            raise ValueError("Modelo não encontrado para o usuário.")
-
-        model = self.models[user_id]
-        X = self.encode_message(input_message)  # Codifica a mensagem
-        prediction = model.predict(X)
-        return "útil" if prediction[0][0] >= 0.5 else "não útil"
-
+            return False  # Retorna False se ocorrer algum erro
 
 
 class Inicial:
-    def __init__(self, page):
+    def __init__(self, page, conn=None, session_id=None, loop=None):
         """Inicializa a aplicação Baymax com configurações essenciais de UI, modelo, banco de dados e TTS."""
         self.page = page
         self.font_size = 16  # Defina um valor inicial para font_size
@@ -276,13 +130,14 @@ class Inicial:
         self.chat_box = ft.Column(scroll="auto", expand=True, alignment=ft.MainAxisAlignment.START, spacing=10)
         self.buildChatView()  # Constrói a interface do chat
         self.buildHomeView()  # Constrói a interface inicial
+        self.processing_message = False
+        self.message_input = ft.TextField()
 
         # Variáveis para armazenar o texto do feedback e a avaliação selecionada
         self.feedbackText = ""
         self.avaliacao = ""
 
         # Inicialização da rede neural e configurações de TTS
-        self.neural_network = NeuralNetwork()
         self.lock = threading.Lock()
         self.tts_engine = pyttsx3.init()
         self.speech_enabled = True
@@ -312,6 +167,12 @@ class Inicial:
         self.font_size = 16
         self.updateFontSize()  # Atualiza o tamanho da fonte inicialmente
         self.loadingScreen()
+
+    def speak(self, text):
+        """Faz o Baymax falar a resposta utilizando o TTS."""
+        if self.speech_enabled:
+            self.tts_engine.say(text)
+            self.tts_engine.runAndWait()
 
     def loadingScreen(self):
         """Exibe a tela de carregamento."""
@@ -375,6 +236,10 @@ class Inicial:
         """Aguarda um tempo antes de carregar a tela de boas-vindas."""
         threading.Event().wait(3)
         self.buildWelcomeView()  # Chama a nova tela de boas-vindas
+
+    def closeApp(self, e=None):
+        """Fecha o aplicativo."""
+        self.page.window_destroy()  # Fecha o aplicativo completamente
 
     def buildWelcomeView(self, e=None):
         """Constrói a tela de boas-vindas com fundo vermelho e retângulo centralizado e responsivo."""
@@ -454,7 +319,7 @@ class Inicial:
                                     # Botão "Sair"
                                     ft.ElevatedButton(
                                         "Sair",
-                                        on_click=self.closeApp,
+                                        on_click=self.closeApp,  # Chama a função closeApp
                                         bgcolor=ft.colors.RED_800,
                                         style=ft.ButtonStyle(
                                             color=ft.colors.WHITE,  # Cor das letras em branco
@@ -473,7 +338,6 @@ class Inicial:
                             padding=20,  # Espaçamento interno (padding)
                             margin=ft.margin.symmetric(vertical=20),  # Margem reduzida no topo e embaixo
                             width=400,  # Largura fixa do retângulo
-                            # Altura do retângulo adaptável, sem especificar a altura diretamente
                             alignment=ft.alignment.center,  # Centraliza o retângulo dentro do container
                         ),
                         bgcolor=ft.colors.RED,  # Fundo da página vermelho
@@ -493,18 +357,22 @@ class Inicial:
         self.email_field = ft.TextField(label="Email", width=200, color=ft.colors.BLACK)
         self.senha_field = ft.TextField(label="Senha", width=200, password=True, color=ft.colors.BLACK)
 
-        # Campo de mensagem invisível
+        # Campo de mensagem para mostrar a mensagem de sucesso de cadastro, se houver
         self.login_message_field = ft.Text(
-            "",  # Inicia vazio
+            self.success_message if hasattr(self, 'success_message') else "",
             size=16,
-            color=ft.colors.BLACK,  # Define a cor da mensagem como preta desde o início
-            visible=False  # Começa invisível
+            color=ft.colors.GREEN if hasattr(self, 'success_message') else ft.colors.BLACK,
+            visible=hasattr(self, 'success_message')
         )
+        # Remove a mensagem de sucesso após exibir
+        if hasattr(self, 'success_message'):
+            del self.success_message
 
         # Criar o container do retângulo branco com bordas arredondadas
         white_rectangle = ft.Container(
             content=ft.Column(
                 controls=[
+                    self.login_message_field,  # Coloca a mensagem de sucesso logo acima dos campos de entrada
                     self.email_field,
                     self.senha_field,
                     ft.ElevatedButton(
@@ -527,8 +395,8 @@ class Inicial:
                         )
                     ),
                 ],
-                alignment=ft.MainAxisAlignment.CENTER,  # Centraliza verticalmente os itens
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,  # Centraliza horizontalmente os itens
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=10,
             ),
             bgcolor=ft.colors.WHITE,  # Fundo do retângulo branco
@@ -544,16 +412,14 @@ class Inicial:
         login_column = ft.Column(
             controls=[
                 ft.AppBar(title=ft.Text("Login"), bgcolor=ft.colors.SURFACE_VARIANT),
-                self.login_message_field,  # Adiciona o campo de mensagem invisível
                 ft.Container(
-                    content=white_rectangle,  # Apenas o retângulo branco
+                    content=white_rectangle,  # Apenas o retângulo branco com a mensagem dentro
                     expand=True,  # Garante que o container ocupe toda a página
                     alignment=ft.alignment.center,  # Centraliza todo o conteúdo da página
                 ),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=20,
             expand=True,  # Garante que a coluna ocupe toda a altura disponível
         )
 
@@ -573,36 +439,33 @@ class Inicial:
         self.page.update()  # Atualiza a página após todas as alterações
 
     def autenticar_usuario(self, email, senha):
+        """Autentica o usuário e retorna o ID do usuário, se válido."""
         try:
-            # Conexão com o banco de dados
             conn = mysql.connector.connect(
-                host='localhost',  # ou o endereço do seu servidor de banco de dados
+                host='localhost',
                 database='baymax',
                 user='root',
-                password=''  # Adicione sua senha aqui, se houver
+                password=''
             )
             cursor = conn.cursor()
 
-            # Consulta para verificar se o usuário existe com o email e a senha fornecidos
-            cursor.execute("SELECT * FROM usuario WHERE email = %s", (email,))
+            cursor.execute("SELECT id FROM usuario WHERE email = %s AND senha = %s", (email, senha))
             usuario = cursor.fetchone()
 
-            # Verifica se o usuário foi encontrado e se a senha corresponde
-            if usuario and usuario[5] == senha:  # Aqui, assume-se que a senha é o 6º campo na tabela
-                return True
+            if usuario:
+                print(f"Usuário '{usuario[0]}' autenticado com sucesso.")
+                return usuario[0]  # Retorna o ID do usuário
             else:
-                return False
-
+                print("Email ou senha incorretos.")
+                return None
         except mysql.connector.Error as e:
             print(f"Erro ao acessar o banco de dados: {e}")
-            return False
-
+            return None
         finally:
-            if 'cursor' in locals() and cursor:  # Verifica se o cursor foi criado
+            if 'cursor' in locals() and cursor:
                 cursor.close()
-            if 'conn' in locals() and conn.is_connected():  # Verifica se a conexão foi criada
+            if 'conn' in locals() and conn.is_connected():
                 conn.close()
-
     def updateLoginMessage(self, message, visible):
         """Atualiza a mensagem de login."""
         self.login_message_field.text = message
@@ -612,34 +475,22 @@ class Inicial:
         self.page.update()  # Atualiza a página para refletir as mudanças
 
     def handleLogin(self, e):
-        """Lida com a autenticação do usuário."""
-
-        # Obtém diretamente os valores dos campos de email e senha
+        """Lida com a autenticação do usuário e armazena o ID."""
         email = self.email_field.value
         senha = self.senha_field.value
 
         try:
-            user = self.db.readUserByEmail(email)
-            if user and user[5] == senha:  # Verifica se o usuário existe e se a senha está correta
-                print(f"Usuário '{email}' autenticado com sucesso.")
-                self.page.go("/")  # Navega para a tela principal
-                self.login_message_field.visible = False  # Esconde a mensagem de erro, se houver
+            user_id = self.autenticar_usuario(email, senha)
+            if user_id:
+                self.user_id = user_id  # Define o ID do usuário autenticado
+                print(f"Usuário autenticado com ID: {self.user_id}")
+                self.page.go("/")
+                self.login_message_field.visible = False
             else:
-                self.login_message_field.text = "Email ou senha incorretos."
-                self.login_message_field.color = ft.colors.BLACK  # Define a cor da mensagem como preta
-                self.login_message_field.visible = True  # Mostra a mensagem de erro
-                print(
-                    f"Mensagem de erro: '{self.login_message_field.text}' visível: {self.login_message_field.visible}")  # Depuração
+                self.updateLoginMessage("Email ou senha incorretos.", True)
         except Exception as error:
             print(f"Erro ao autenticar: {error}")
-            self.login_message_field.text = "Erro ao autenticar. Tente novamente."
-            self.login_message_field.color = ft.colors.BLACK  # Define a cor da mensagem como preta
-            self.login_message_field.visible = True  # Mostra a mensagem de erro
-            print(
-                f"Mensagem de erro: '{self.login_message_field.text}' visível: {self.login_message_field.visible}")  # Depuração
-
-        # Atualiza a página após definir a mensagem de erro
-        self.page.update()
+            self.updateLoginMessage("Erro ao autenticar. Tente novamente.", True)
 
     def buildSignupView(self, e):
         """Constrói a tela de cadastro."""
@@ -651,30 +502,82 @@ class Inicial:
         self.nome_field = ft.TextField(label="Nome Completo", width=200, color=ft.colors.BLACK)
         self.telefone_field = ft.TextField(label="Telefone", width=200, color=ft.colors.BLACK)
         self.senha_field = ft.TextField(label="Senha", width=200, password=True, color=ft.colors.BLACK)
-        self.senha_confirmacao_field = ft.TextField(label="Confirmação da Senha", width=200, password=True,
-                                                    color=ft.colors.BLACK)
+        self.senha_confirmacao_field = ft.TextField(
+            label="Confirmação da Senha", width=200, password=True, color=ft.colors.BLACK
+        )
 
         # Campo de mensagem invisível
         self.signup_message_field = ft.Text(
-            "Campos em branco",
+            "Campos em branco ou senhas não coincidem.",
             size=16,
             color=ft.colors.RED,
             visible=False  # Começa invisível
         )
 
-        # Contêiner principal com fundo e bordas
+        # Função para processar o cadastro
+        def process_signup(e):
+            email = self.email_field.value
+            cpf = self.cpf_field.value
+            nomeCompleto = self.nome_field.value
+            telefone = self.telefone_field.value
+            senha = self.senha_field.value
+            senha_confirmacao = self.senha_confirmacao_field.value
+
+            # Verifique se os campos estão preenchidos
+            if not email or not cpf or not nomeCompleto or not telefone or not senha:
+                self.signup_message_field.value = "Preencha todos os campos."
+                self.signup_message_field.color = ft.colors.RED
+                self.signup_message_field.visible = True
+                self.page.update()
+                return
+
+            # Verifique se as senhas coincidem
+            if senha != senha_confirmacao:
+                self.signup_message_field.value = "As senhas não coincidem."
+                self.signup_message_field.color = ft.colors.RED
+                self.signup_message_field.visible = True
+                self.page.update()
+                return
+
+            # Insira o usuário no banco de dados
+            try:
+                self.db.createUser(email, cpf, nomeCompleto, telefone, senha)
+                # Mensagem de sucesso
+                self.success_message = "Usuário cadastrado com sucesso!"
+                self.buildLoginView()  # Redireciona para a página de login
+            except Exception as e:
+                # Mensagem de erro
+                self.signup_message_field.value = f"Erro ao cadastrar: {e}"
+                self.signup_message_field.color = ft.colors.RED
+                self.signup_message_field.visible = True
+
+            self.page.update()
+
+        # Botão para processar o cadastro com o estilo solicitado
+        signup_button = ft.ElevatedButton(
+            text="Cadastrar",
+            on_click=process_signup,
+            bgcolor=ft.colors.RED_800,  # Cor do botão
+            style=ft.ButtonStyle(
+                color=ft.colors.BLACK,
+                side=ft.BorderSide(3, ft.colors.BLACK),
+            ),
+            width=160,  # Largura do botão
+            height=40,  # Altura do botão
+        )
+
+        # Contêiner principal com fundo e bordas (diminuído para largura 300 e altura ajustada)
         signup_container = ft.Container(
             content=ft.Column(
                 controls=[
-                    # Balão de fala para "Preencha os dados abaixo"
                     ft.Container(
                         content=ft.Text("Preencha os dados abaixo", size=24, color=ft.colors.BLACK),
                         padding=10,
-                        bgcolor=ft.colors.WHITE,  # Fundo branco do balão
+                        bgcolor=ft.colors.WHITE,
                         border=ft.border.all(2, ft.colors.BLACK),
                         border_radius=10,
                         alignment=ft.alignment.center,
-                        margin=ft.margin.only(bottom=10),  # Margem abaixo
+                        margin=ft.margin.only(bottom=10),
                     ),
                     self.email_field,
                     self.cpf_field,
@@ -682,18 +585,8 @@ class Inicial:
                     self.telefone_field,
                     self.senha_field,
                     self.senha_confirmacao_field,
-                    self.signup_message_field,  # Adiciona o campo de mensagem
-                    ft.ElevatedButton(
-                        "Cadastrar",
-                        on_click=self.buildLoginView,  # Altera para chamar buildLoginView
-                        bgcolor=ft.colors.RED_800,  # Cor do botão
-                        style=ft.ButtonStyle(
-                            color=ft.colors.BLACK,
-                            side=ft.BorderSide(3, ft.colors.BLACK),
-                        ),
-                        width=160,  # Largura do botão
-                        height=40,  # Altura do botão
-                    ),
+                    self.signup_message_field,  # Campo de mensagem
+                    signup_button,
                     ft.TextButton(
                         "Voltar",
                         on_click=self.buildWelcomeView,
@@ -703,55 +596,59 @@ class Inicial:
                         )
                     ),
                 ],
-                alignment=ft.MainAxisAlignment.CENTER,  # Centraliza verticalmente os itens
+                alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=10,
             ),
-            bgcolor=ft.colors.WHITE,  # Cor de fundo do contêiner
-            border=ft.border.all(3, ft.colors.BLACK),  # Borda preta de 3px
-            padding=20,  # Espaçamento interno (padding)
-            margin=ft.margin.symmetric(vertical=20),  # Margem reduzida no topo e embaixo
-            width=400,  # Largura fixa do retângulo
-            alignment=ft.alignment.center,  # Centraliza o retângulo dentro do container
-            border_radius=10,  # Bordas arredondadas
+            bgcolor=ft.colors.WHITE,
+            border=ft.border.all(3, ft.colors.BLACK),
+            padding=20,
+            margin=ft.margin.symmetric(vertical=20),
+            width=300,  # Diminui a largura do formulário
+            height=600,  # Ajuste de altura
+            alignment=ft.alignment.center,
+            border_radius=10,
         )
 
+        # A imagem deve ficar à direita do formulário
+        signup_layout = ft.Row(
+            controls=[
+                signup_container,  # Formulário de cadastro
+                ft.Container(
+                    content=ft.Image(
+                        src="../Imagens/cadastro.png",
+                        fit=ft.ImageFit.CONTAIN,
+                        width=200,
+                        height=200,
+                    ),
+                    alignment=ft.alignment.center,
+                    margin=ft.margin.only(left=20),  # Espaço entre o formulário e a imagem
+                )
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,  # Centraliza o conteúdo da row
+            spacing=20,  # Define o espaço entre o formulário e a imagem
+        )
+
+        # Adicionando a view ao layout sem AppBar
         self.page.views.append(
             ft.View(
                 "/signup",
                 [
-                    ft.AppBar(title=ft.Text("Cadastrar"), bgcolor=ft.colors.SURFACE_VARIANT),
                     ft.Container(
-                        content=ft.Stack(  # Usando Stack para sobreposição
+                        content=ft.Stack(
                             controls=[
-                                # Contêiner para a imagem
-                                ft.Container(
-                                    content=ft.Image(
-                                        src="../Imagens/cadastro.png",  # Caminho da imagem
-                                        fit=ft.ImageFit.CONTAIN,
-                                        width=200,  # Largura fixa da imagem
-                                        height=200,  # Altura fixa da imagem
-                                    ),
-                                    margin=ft.margin.only(bottom=20),  # Margem abaixo da imagem
-                                    alignment=ft.alignment.center,  # Centraliza a imagem
-                                ),
-                                # Contêiner do formulário
-                                signup_container,
+                                signup_layout,
                             ]
                         ),
-                        bgcolor=ft.colors.RED,  # Fundo da página vermelho
-                        expand=True,  # Garante que o contêiner ocupe toda a página
-                        alignment=ft.alignment.center,  # Centraliza o conteúdo
+                        bgcolor=ft.colors.RED,
+                        expand=True,
+                        alignment=ft.alignment.center,
                     ),
                 ],
             )
         )
         self.page.update()
 
-    def closeApp(self, e):  # Adicione o parâmetro `e`
-        """Fecha o aplicativo."""
-        self.db.closeConnection()  # Fecha a conexão com o banco de dados, se necessário
-        os._exit(0)  # Comando para fechar o aplicativo
 
     def handleSignup(self, e):
         """Lida com o cadastro do usuário."""
@@ -832,6 +729,8 @@ class Inicial:
             return False
 
     def initializeModel(self):
+        # Implemente a inicialização do modelo
+        pass
         """Configura o modelo de IA com a API do Gemini."""
         try:
             genai.configure(api_key="AIzaSyCk-u-JNCWlX0-G5omIdhictzVNW8bEZbM")  # Substitua pela sua chave API real
@@ -867,72 +766,6 @@ class Inicial:
             print(f"Erro ao inicializar o modelo: {e}")
             return None
 
-    def initializeNeuralNetworkModel(self):
-        """Inicializa a rede neural para aprendizado contínuo."""
-        os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-
-        model = Sequential()
-        model.add(Input(shape=(128,)))  # Ajuste o tamanho da entrada conforme necessário
-        model.add(Dense(64, activation='relu'))
-        model.add(Dense(32, activation='relu'))
-        model.add(Dense(1, activation='linear'))
-
-        model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mae'])
-        return model
-
-    def fetchTrainingData(self):
-        """Busca dados de treinamento no banco de dados com proteção contra SQL Injection."""
-        query = "SELECT * FROM usuario"
-
-        try:
-            cursor = self.db.connection.cursor(prepared=True)  # Usar 'prepared=True' para parametrização
-            cursor.execute(query)
-            result = cursor.fetchall()
-
-            data = []
-            labels = []
-            for row in result:
-                data.append([row[1]])  # Ajuste conforme necessário
-                labels.append(row[2])  # Ajuste conforme necessário
-
-            return np.array(data), np.array(labels)
-        except mysql.connector.Error as e:
-            print(f"Erro ao buscar dados do banco: {e}")
-            return None, None
-
-    def trainNeuralNetwork(self, data, labels):
-        """Treina a rede neural e aplica callbacks para melhor eficiência."""
-        if data is None or labels is None:
-            print("Dados ou rótulos inválidos. O treinamento não pode prosseguir.")
-            return None
-
-        model = self.initializeNeuralNetworkModel()
-        if model is None:
-            print("Modelo de rede neural não foi inicializado.")
-            return None
-
-        try:
-            print("Iniciando o treinamento da rede neural...")
-
-            # Callbacks para ajuste automático da taxa de aprendizado e para salvar o melhor modelo
-            reduce_lr = ReduceLROnPlateau(monitor='loss', factor=0.2, patience=3, min_lr=0.001, verbose=1)
-            checkpoint = ModelCheckpoint('melhor_modelo.h5', monitor='loss', save_best_only=True, verbose=1)
-
-            # Callback para log de cada época
-            class EpochLogger(tf.keras.callbacks.Callback):
-                def on_epoch_end(self, epoch, logs=None):
-                    print(f"Época {epoch + 1} finalizada - Loss: {logs.get('loss')}, MAE: {logs.get('mae')}")
-
-            # Treina o modelo com os callbacks para ajuste de eficiência
-            history = model.fit(data, labels, epochs=10, batch_size=32,
-                                callbacks=[EpochLogger(), reduce_lr, checkpoint])
-
-            print("Treinamento da rede neural concluído com sucesso.")
-            return model, history  # Retorne também o histórico de treinamento, se necessário
-
-        except Exception as e:
-            print(f"Erro ao treinar a rede neural: {e}")
-            return None
 
     def buildAppBar(self):
         """Constrói a AppBar universal para todas as páginas com menu de configurações estilizado."""
@@ -1155,84 +988,98 @@ class Inicial:
 
     def buildChatView(self):
         """Constrói a interface do chat com balões de fala e funcionalidade de copiar."""
-        self.message_input = ft.TextField(hint_text="Digite sua mensagem...", expand=True, on_submit=self.sendMessage,
-                                          color=ft.colors.BLACK)
+        # Entrada de mensagem
+        self.message_input = ft.TextField(
+            hint_text="Digite sua mensagem...",
+            expand=True,
+            on_submit=self.sendMessage,
+            color=ft.colors.BLACK,
+        )
 
         # Botão para ativar/desativar a fala
         self.voice_button = ft.ElevatedButton(
-            "Desativar Voz", on_click=self.toggleVoice, bgcolor=ft.colors.RED_800, color=ft.colors.WHITE,
-            style=ft.ButtonStyle(
-                color=ft.colors.BLACK,
-                side=ft.BorderSide(3, ft.colors.BLACK),
-            ),
-            width=160,  # Largura do botão
-            height=40,  # Altura do botão
-        )
-
-        # Botão para ativar reconhecimento de voz
-        self.mic_button = ft.ElevatedButton(
-            "Falar", on_click=self.startVoiceRecognition, bgcolor=ft.colors.RED_800,
+            "Desativar Voz",
+            on_click=self.toggleVoice,
+            bgcolor=ft.colors.RED_800,
             color=ft.colors.WHITE,
             style=ft.ButtonStyle(
                 color=ft.colors.BLACK,
                 side=ft.BorderSide(3, ft.colors.BLACK),
             ),
-            width=160,  # Largura do botão
-            height=40,  # Altura do botão
+            width=160,
+            height=40,
+        )
+
+        # Botão para ativar reconhecimento de voz
+        self.mic_button = ft.ElevatedButton(
+            "Falar",
+            on_click=self.startVoiceRecognition,
+            bgcolor=ft.colors.RED_800,
+            color=ft.colors.WHITE,
+            style=ft.ButtonStyle(
+                color=ft.colors.BLACK,
+                side=ft.BorderSide(3, ft.colors.BLACK),
+            ),
+            width=160,
+            height=40,
         )
 
         # Estilo do container do chat
         chat_container_style = {
             "expand": True,
             "padding": 10,
-            "bgcolor": ft.colors.WHITE,  # Cor de fundo do chat
+            "bgcolor": ft.colors.WHITE,
             "border_radius": 10,
         }
 
-        # Adicionando a view do chat com fundo branco e AppBar universal
+        # Monta a View com elementos organizados e AppBar universal
         self.page.views.append(
             ft.View(
                 "/chatIAFlet",
                 [
-                    self.buildAppBar(),  # Usando a AppBar universal
+                    self.buildAppBar(),
                     ft.Container(
                         content=ft.Column(
                             [
                                 ft.Container(
                                     self.chat_box,
-                                    **chat_container_style  # Usando o dicionário para definir estilo do chat
+                                    **chat_container_style
                                 ),
                                 ft.Row(
                                     controls=[
                                         self.message_input,
                                         ft.ElevatedButton(
-                                            "Enviar", on_click=self.sendMessage, bgcolor=ft.colors.RED_800,
+                                            "Enviar",
+                                            on_click=self.sendMessage,
+                                            bgcolor=ft.colors.RED_800,
                                             color=ft.colors.WHITE,
                                             style=ft.ButtonStyle(
                                                 color=ft.colors.BLACK,
                                                 side=ft.BorderSide(3, ft.colors.BLACK),
                                             ),
-                                            width=160,  # Largura do botão
-                                            height=40,  # Altura do botão
+                                            width=160,
+                                            height=40,
                                         ),
                                         ft.ElevatedButton(
-                                            "Limpar Chat", on_click=self.clearChat, bgcolor=ft.colors.RED_800,
+                                            "Limpar Chat",
+                                            on_click=self.clearChat,
+                                            bgcolor=ft.colors.RED_800,
                                             color=ft.colors.WHITE,
                                             style=ft.ButtonStyle(
                                                 color=ft.colors.BLACK,
                                                 side=ft.BorderSide(3, ft.colors.BLACK),
                                             ),
-                                            width=160,  # Largura do botão
-                                            height=40,  # Altura do botão
+                                            width=160,
+                                            height=40,
                                         ),
-                                        self.mic_button  # Botão de microfone
+                                        self.mic_button
                                     ],
                                     alignment=ft.MainAxisAlignment.END,
                                 ),
                                 ft.Row(
                                     controls=[
                                         self.voice_button,
-                                        self.buildBackButton(),  # Mantendo o botão de voltar
+                                        self.buildBackButton(),
                                     ],
                                     alignment=ft.MainAxisAlignment.END,
                                 ),
@@ -1240,7 +1087,7 @@ class Inicial:
                             alignment=ft.MainAxisAlignment.START,
                             spacing=10,
                         ),
-                        bgcolor=ft.colors.WHITE,  # Definindo o fundo da view como branco
+                        bgcolor=ft.colors.WHITE,
                         expand=True,
                     )
                 ],
@@ -1251,13 +1098,14 @@ class Inicial:
     def buildAboutView(self):
         """Constrói a visualização da página 'Sobre' com a AppBar universal, ajustada para responsividade."""
 
-        # Conteúdo da página 'Sobre'
+        # Conteúdo da página 'Sobre' com ajuste de tamanho de fonte para melhor responsividade
         about_content = ft.Column(
             controls=[
-                ft.Text("Bem-vindo ao Baymax!", size=34, weight="bold", color=ft.colors.BLACK),
+                ft.Text("Bem-vindo ao Baymax!", size=self.page.window.width * 0.035, weight="bold",
+                        color=ft.colors.BLACK),
                 ft.Text(
                     "Baymax é um assistente virtual inovador, projetado para aprimorar a experiência dos usuários através de respostas rápidas e uma navegação intuitiva.",
-                    size=18, color=ft.colors.BLACK
+                    size=self.page.window.width * 0.02, color=ft.colors.BLACK
                 ),
 
                 # Seção: Desafio e Solução
@@ -1315,22 +1163,23 @@ class Inicial:
             alignment=ft.MainAxisAlignment.START,
         )
 
-        # Para aplicar padding usando EdgeInsets.all():
+        # Responsividade do container principal
         about_container = ft.Container(
             content=ft.Column(controls=[about_content], scroll=ft.ScrollMode.AUTO),
-            width=self.page.window.width * 0.9,
-            height=self.page.window.height * 0.7,
-            padding=ft.padding.all(10),  # Aplica padding de 10 pixels em todos os lados
+            width=self.page.window.width * 0.95,  # Aumenta a largura para 95% da tela
+            height=self.page.window.height * 0.8,  # Aumenta a altura para 80% da tela
+            padding=ft.padding.all(15),  # Aumenta o padding
             bgcolor=ft.colors.WHITE,
             border_radius=10,
             alignment=ft.alignment.center,
         )
 
-        # Container de feedback para o usuário avaliar o assistente
+        # Container de feedback com responsividade
         feedback_container = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("Avalie sua experiência:", size=18, weight="bold", color=ft.colors.BLACK),
+                    ft.Text("Avalie sua experiência:", size=self.page.window.width * 0.02, weight="bold",
+                            color=ft.colors.BLACK),
                     ft.RadioGroup(
                         content=ft.Column(
                             controls=[
@@ -1352,8 +1201,8 @@ class Inicial:
                 ],
                 spacing=10
             ),
-            width=self.page.window.width * 0.85,  # Ajusta para 85% da largura da janela
-            padding=10,
+            width=self.page.window.width * 0.9,  # Ajusta para 90% da largura da janela
+            padding=15,  # Aumenta o padding para melhor estética
             bgcolor=ft.colors.GREY,
             border_radius=10,
         )
@@ -1404,7 +1253,7 @@ class Inicial:
 
     def submitFeedback(self, e):
         self.feedbackText = self.feedback_text.value  # Captura o valor do campo de texto
-        self.avaliacao = self.avaliacao_dropdown.value  # Captura a avaliação
+        self.avaliacao = self.avaliacao_dropdown  # Corrige para capturar o valor diretamente se for uma string
 
         print(f"Feedback Text: '{self.feedbackText}', Avaliacao: '{self.avaliacao}'")  # Verificação
 
@@ -1461,18 +1310,6 @@ class Inicial:
         """Inicia o reconhecimento de voz em uma thread separada."""
         threading.Thread(target=self.recognizeSpeech).start()
 
-
-
-    def prepareInputData(self, message):
-        """Transforma a mensagem do usuário em dados numéricos para o treinamento."""
-        # Esta função precisa ser personalizada conforme a natureza dos dados
-        return np.random.rand(10)  # Exemplo de vetor com 10 features
-
-    def prepareOutputData(self, message):
-        """Transforma a resposta do Baymax em dados numéricos para o treinamento."""
-        # Esta função precisa ser personalizada conforme a natureza dos dados
-        return np.random.randint(2)  # Exemplo de saída binária (0 ou 1)
-
     def toggleVoice(self, e):
         """Ativa ou desativa a fala do Baymax."""
         self.speech_enabled = not self.speech_enabled  # Alterna o estado da fala
@@ -1480,255 +1317,147 @@ class Inicial:
             self.voice_button.text = "Desativar Voz"
         else:
             self.voice_button.text = "Ativar Voz"
-            if hasattr(self, 'tts_engine') and self.tts_engine.isBusy():
-                # Para qualquer fala em andamento, se a voz for desativada
-                self.tts_engine.stop()
+            if self.tts_engine and self.tts_engine.isBusy():
+                self.tts_engine.stop()  # Interrompe a fala caso esteja em andamento
                 print("Fala interrompida.")  # Imprime apenas uma vez
         self.page.update()
 
     def startSpeaking(self):
         """Inicia a fala do Baymax."""
-        # Aqui você adiciona a lógica para começar a falar (como chamar uma função de TTS)
-        if hasattr(self, 'speech_engine'):
-            # Exemplo: se você tiver uma variável 'speech_engine' que controla o TTS
-            self.speech_engine.say("Estou pronto para ajudar!")  # Exemplo de fala inicial
-            self.speech_engine.runAndWait()
+        if self.speech_enabled:
+            self.addToSpeechQueue("Estou pronto para ajudar!")  # Exemplo de fala inicial
 
     def stopSpeaking(self):
         """Para a fala do Baymax."""
-        # Aqui você adiciona a lógica para parar a fala
-        if hasattr(self, 'speech_engine'):
-            # Se você estiver usando um mecanismo de TTS como pyttsx3, você pode parar a fala
-            self.speech_engine.stop()  # Ou qualquer comando específico para parar a fala
+        if hasattr(self, 'tts_engine'):
+            self.tts_engine.stop()
 
-    def sendMessage(self, e):
-        """Envia a mensagem do usuário e atualiza a interface."""
-        texto = self.message_input.value.strip()
-        if texto.lower() == "sair":
-            self.page.go("/")
-            return
-
-        # Verifica se há mensagem ou se já está processando uma
-        if not texto or getattr(self, 'processing_message', False):
+    def sendMessage(self, e=None, texto=None):
+        """Envia a mensagem do usuário (por texto ou voz) e exibe a resposta do Baymax."""
+        if self.processing_message:
+            print("Aguarde o processamento da mensagem anterior.")
             return
 
         self.processing_message = True
-
-        try:
-            # Exibe a mensagem do usuário na interface
-            user_bubble = ft.Container(
-                content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.WHITE),
-                bgcolor=ft.colors.GREEN_400,
-                padding=10,
-                border_radius=10,
-                alignment=ft.alignment.center_right,
-                margin=ft.margin.only(bottom=5)
-            )
-            self.chat_box.controls.append(user_bubble)
-
-            # Mensagem "digitando" do Baymax
-            self.typing_message = ft.Container(
-                content=ft.Text("Baymax está digitando...", size=16, color=ft.colors.YELLOW),
-                bgcolor=ft.colors.GREY,
-                padding=10,
-                border_radius=10,
-                alignment=ft.alignment.center_left,
-                margin=ft.margin.only(bottom=5)
-            )
-            self.chat_box.controls.append(self.typing_message)
-            self.page.update()
-
-            # Inicia uma nova thread para processar a mensagem do usuário e obter a resposta
-            threading.Thread(target=self.handleSendMessage, args=(texto,)).start()
-
-        except Exception as e:
-            print(f"Erro ao enviar mensagem: {e}")
-        finally:
-            self.processing_message = False
-
-    def sendMessageFromVoice(self, texto):
-        """Envia a mensagem do usuário reconhecida pela voz e atualiza a interface."""
-        if texto.lower() == "sair":
-            self.page.go("/")  # Sai ou faz alguma outra ação
-            return
-
-        # Verifica se há mensagem ou se já está processando uma
-        if not texto or getattr(self, 'processing_message', False):
-            return
-
-        self.processing_message = True
-
-        try:
-            # Exibe a mensagem do usuário na interface
-            user_bubble = ft.Container(
-                content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.WHITE),
-                bgcolor=ft.colors.GREEN_400,
-                padding=10,
-                border_radius=10,
-                alignment=ft.alignment.center_right,
-                margin=ft.margin.only(bottom=5)
-            )
-            self.chat_box.controls.append(user_bubble)
-
-            # Mensagem "digitando" do Baymax
-            self.typing_message = ft.Container(
-                content=ft.Text("Baymax está digitando...", size=16, color=ft.colors.YELLOW),
-                bgcolor=ft.colors.GREY,
-                padding=10,
-                border_radius=10,
-                alignment=ft.alignment.center_left,
-                margin=ft.margin.only(bottom=5)
-            )
-            self.chat_box.controls.append(self.typing_message)
-            self.page.update()
-
-            # Inicia uma nova thread para processar a mensagem do usuário e obter a resposta
-            threading.Thread(target=self.handleSendMessage, args=(texto,)).start()
-
-        except Exception as e:
-            print(f"Erro ao enviar mensagem: {e}")
-        finally:
-            self.processing_message = False
-
-    def handleSendMessage(self, texto):
-        """Processa o envio da mensagem e a fala, e adiciona à fila para treinamento."""
-        if not isinstance(texto, str) or not texto.strip():
-            print("Mensagem vazia ou não é uma string, não enviando.")
-            return
-
-        print(f"handleSendMessage chamado com texto: '{texto}'")
-
-        # Envia a mensagem e obtém a resposta
-        print(f"Enviando mensagem: {texto}")
-        response = self.chat.send_message(texto)
-
-        resposta_texto = getattr(response, 'text', "Desculpe, não consegui entender.")
-        print(f"Resposta do Baymax: {resposta_texto}")
-
-        # Verifica similaridade antes de salvar
-        if self.checkMessageSimilarity(texto):
-            # Salva a conversa no banco de dados
-            usuario_id = self.user_id if self.user_id else 1
-            self.db.salvarConversa(usuario_id, texto, resposta_texto)
-        else:
-            print("Mensagem muito semelhante já existe no banco de dados. Não será salva.")
-
-        # Remove a mensagem "Baymax está digitando..." se existir
-        if hasattr(self, 'typing_message'):
-            self.chat_box.controls.remove(self.typing_message)
-            print("Mensagem 'Baymax está digitando...' removida.")
-
-        # Adiciona a resposta do Baymax ao chat
-        baymax_bubble = ft.Container(
-            content=ft.Text(f"Baymax: {resposta_texto}", size=16, color=ft.colors.WHITE),
-            bgcolor=ft.colors.RED,
-            padding=10,
-            border_radius=10,
-            alignment=ft.alignment.center_left,
-            margin=ft.margin.only(bottom=5)
-        )
-        self.chat_box.controls.append(baymax_bubble)
-        print("Mensagem do Baymax adicionada ao chat.")
-
-        # Limpa o campo de entrada
-        self.message_input.value = ""
-
-        # Atualiza a página para refletir as novas mensagens
+        self.message_input.disabled = True
+        self.voice_button.disabled = True
+        self.mic_button.disabled = True
         self.page.update()
 
-        # Adiciona a resposta à fila de fala
-        self.addToSpeechQueue(resposta_texto)
+        texto = texto or (self.message_input.value.strip() if e is not None else e)
+        if not texto:
+            self.processing_message = False
+            self.message_input.disabled = False
+            self.voice_button.disabled = False
+            self.mic_button.disabled = False
+            self.page.update()
+            return
 
-        # Treinamento da rede neural com a nova mensagem
-        data, labels = self.fetchTrainingData()  # Busca os dados de treinamento
-        if data is not None and labels is not None:
-            self.trainNeuralNetwork(data, labels)  # Treina a rede neural com os dados
+        if texto.lower() == "sair":
+            self.page.go("/")
+            self.processing_message = False
+            return
 
-        # Verifica se a fala está em andamento e, se não, inicia a fala das mensagens
-        if not getattr(self, 'is_speaking', False):  # Se não estiver falando, começa a falar
-            self.speakNextInQueue()
+        try:
+            # Exibe a mensagem do usuário no chat
+            user_bubble = ft.Container(
+                content=ft.Text(f"Você: {texto}", size=16, color=ft.colors.WHITE),
+                bgcolor=ft.colors.GREEN_400,
+                padding=10,
+                border_radius=10,
+                alignment=ft.alignment.center_right,
+                margin=ft.margin.only(bottom=5)
+            )
+            self.chat_box.controls.append(user_bubble)
 
-    def addToSpeechQueue(self, text):
-        """Adiciona texto à fila de fala e inicia a fala se o Baymax não estiver falando no momento."""
-        self.speech_messages.append(text)  # Adiciona o texto diretamente na fila de fala
-        if self.speech_enabled and not getattr(self, 'is_speaking', False):  # Verifica se a voz está ativada
-            self.speakNextInQueue()
+            # Exibe mensagem temporária de "digitando" do Baymax
+            self.typing_message = ft.Container(
+                content=ft.Text("Baymax está digitando...", size=16, color=ft.colors.YELLOW),
+                bgcolor=ft.colors.GREY,
+                padding=10,
+                border_radius=10,
+                alignment=ft.alignment.center_left,
+                margin=ft.margin.only(bottom=5)
+            )
+            self.chat_box.controls.append(self.typing_message)
+            self.page.update()
 
-    def speakNextInQueue(self):
-        """Faz o Baymax falar o próximo item na fila de fala, se houver, aguardando o término da fala anterior."""
-        if self.speech_messages and not getattr(self, 'is_speaking', False):  # Só fala se houver mensagem na fila
-            text_to_speak = self.speech_messages.pop(0)  # Pega a primeira mensagem da fila
-            self.speak(text_to_speak)
-
-    def speak(self, text):
-        """Faz o Baymax falar o texto fornecido e chama o próximo item na fila ao terminar."""
-        if self.speech_enabled:  # Só fala se a voz estiver ativada
+            # Obtém a resposta do modelo
+            resposta_texto = None
             try:
-                self.is_speaking = True  # Marca que o Baymax está falando
-                with self.lock:
-                    if self.tts_engine.isBusy():
-                        self.tts_engine.stop()  # Interrompe qualquer fala anterior
-                        print("Fala interrompida.")  # Imprime apenas uma vez
+                print(f"Texto enviado para o modelo: {texto}")
+                response = self.chat.send_message(texto)
+                resposta_texto = response.text if hasattr(response, 'text') else "Desculpe, não consegui entender."
+                self.tempResponse = resposta_texto
+                print(f"Resposta do modelo antes de ser salva: {resposta_texto}")
+            except Exception as inner_error:
+                print(f"Erro ao obter resposta do Baymax: {str(inner_error)}")
+                resposta_texto = f"Erro ao processar sua mensagem: {str(inner_error)}"
 
-                    self.tts_engine.say(text)  # Coloca o texto na fila de fala
-                    self.tts_engine.runAndWait()  # Aguarda a fala terminar
+            # Remove a mensagem "digitando" do Baymax
+            if self.typing_message in self.chat_box.controls:
+                self.chat_box.controls.remove(self.typing_message)
 
-                # Após a fala atual, chama o próximo item na fila
-                self.is_speaking = False  # Define como não está mais falando
-                self.speakNextInQueue()  # Faz o Baymax falar a próxima mensagem
-            except Exception as e:
-                print(f"Erro ao tentar falar: {e}")
-                self.is_speaking = False  # Se houver erro, redefine o estado para não falar
-        else:
-            print("Fala desativada, não foi possível falar.")
+            # Exibe a resposta do Baymax no chat
+            baymax_bubble = ft.Container(
+                content=ft.Text(f"Baymax: {resposta_texto}", size=16, color=ft.colors.WHITE),
+                bgcolor=ft.colors.RED,
+                padding=10,
+                border_radius=10,
+                alignment=ft.alignment.center_left,
+                margin=ft.margin.only(bottom=5)
+            )
+            self.chat_box.controls.append(baymax_bubble)
 
+            if e is not None:
+                self.message_input.value = ""
+            self.page.update()
 
-    def checkMessageSimilarity(self, message):
-        """Verifica se a mensagem é parecida com as últimas 5 mensagens no banco de dados,
-        usando tokenização, lematização e similaridade de Coseno."""
+            if self.speech_enabled and self.tempResponse:
+                self.speak(self.tempResponse)
 
-        # Verifica se a variável 'message' é uma string
-        if not isinstance(message, str):
-            print("Erro: 'message' deve ser uma string.")
-            return True  # Retorna True para evitar salvar mensagens não válidas
+            # Salvamento no banco de dados
+            if self.user_id:
+                conversa_data = {
+                    'usuario_id': self.user_id,
+                    'mensagem_usuario': str(texto),
+                    'resposta_baymax': str(self.tempResponse)
+                }
+                try:
+                    print("Tentando salvar conversa no banco de dados.")
+                    self.db.salvarConversa(**conversa_data)
+                    print("Conversa salva com sucesso.")
+                except Exception as db_error:
+                    print(f"Erro ao salvar conversa: {str(db_error)}")
 
-        # Inicializa lematizador e conjunto de palavras paradas
-        lemmatizer = WordNetLemmatizer()
-        stop_words = set(stopwords.words('portuguese'))
+            self.chat_box.scroll_to(self.chat_box.controls[-1])
 
-        # Tokeniza e lematiza a mensagem do usuário, removendo palavras paradas
-        message_tokens = [
-            lemmatizer.lemmatize(word)
-            for word in word_tokenize(message.lower())
-            if word not in stop_words
-        ]
+            # Limite de mensagens no chat
+            max_messages = 50
+            if len(self.chat_box.controls) > max_messages:
+                del self.chat_box.controls[:len(self.chat_box.controls) - max_messages]
 
-        # Aqui você deve buscar as mensagens recentes do banco de dados
-        recent_messages = self.db.obterMensagensRecentes(self.user_id)  # Supondo que você tenha esse método
-
-        # Verifica se existem mensagens recentes
-        if not recent_messages:
-            return True  # Se não há mensagens, não pode haver similaridade
-
-        # Adiciona a mensagem do usuário à lista para cálculo de similaridade
-        recent_messages.append(message)
-
-        # Usa TF-IDF para calcular a similaridade
-        vectorizer = TfidfVectorizer()
-        tfidf_matrix = vectorizer.fit_transform(recent_messages)
-
-        # Calcula a similaridade de Coseno entre a nova mensagem e as mensagens recentes
-        cosine_similarities = cosine_similarity(tfidf_matrix[-1:], tfidf_matrix[:-1]).flatten()
-
-        # Define um limite de similaridade
-        threshold = 0.5  # Ajuste este valor conforme necessário
-
-        # Verifica se a similaridade de alguma mensagem recente ultrapassa o limite
-        if any(sim > threshold for sim in cosine_similarities):
-            print("Mensagem similar encontrada. Evitando salvar mensagem duplicada.")
-            return False
-
-        return True
+        except Exception as e:
+            print(f"Erro ao processar mensagem: {str(e)}")
+            erro_texto = f"Ocorreu um erro inesperado: {str(e)}"
+            baymax_bubble = ft.Container(
+                content=ft.Text(f"Baymax: {erro_texto}", size=16, color=ft.colors.WHITE),
+                bgcolor=ft.colors.RED,
+                padding=10,
+                border_radius=10,
+                alignment=ft.alignment.center_left,
+                margin=ft.margin.only(bottom=5),
+                opacity=0
+            )
+            self.chat_box.controls.append(baymax_bubble)
+            self.page.update()
+        finally:
+            self.processing_message = False
+            self.message_input.disabled = False
+            self.voice_button.disabled = False
+            self.mic_button.disabled = False
+            self.page.update()
+            print("Processamento da mensagem finalizado.")
 
     def clearChatContent(self):
         """Limpa o conteúdo do chat."""
@@ -1763,7 +1492,7 @@ def main(page: ft.Page):
     page.window.height = 800
     page.bgcolor = ft.colors.WHITE  # Define o fundo padrão como branco (opcional)
 
-    inicial = Inicial(page)
+    nicial = Inicial(page)
 
 if __name__ == "__main__":
     ft.app(target=main)

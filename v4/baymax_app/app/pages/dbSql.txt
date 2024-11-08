@@ -33,7 +33,7 @@ SELECT * FROM conversa;
 CREATE TABLE feedback (
     id INT AUTO_INCREMENT PRIMARY KEY,
     idConversa INT NOT NULL,
-    avaliacao ENUM('útil', 'não útil') NOT NULLa,
+    avaliacao ENUM('útil', 'não útil') NOT NULL,
     FOREIGN KEY (idConversa) REFERENCES conversa(id)
 );
 
