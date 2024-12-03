@@ -20,8 +20,8 @@ def enviar_mensagem_rede(destinatario, mensagem):
 # Função para enviar notificação por SMS usando Twilio
 def enviar_notificacao_sms(temperatura):
     # Informações do Twilio (substitua pelos dados da sua conta)
-    account_sid = 'ACce2ebc80788f9fc1b5092c9912bc5a6a'
-    auth_token = '009a9936262b6c31cf287b3bf72838ec'
+    account_sid = ''
+    auth_token = ''
     from_number = '+13133296130'  # Seu número Twilio
     to_numbers = ['+5511949937625']  # Lista de números de telefone para enviar SMS
 

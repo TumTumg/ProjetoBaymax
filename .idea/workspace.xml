@@ -5,10 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6d7f7012-8b13-43b5-8fa7-83fbd61c42b0" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/v4/baymax_app/app/pages/BaymaxFirmata.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sketch_jul4a/sketch_jul4a.ino" beforeDir="false" afterPath="$PROJECT_DIR$/v4/baymax_app/app/pages/sketch_jul4a/sketch_jul4a.ino" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/v4/baymax_app/app/pages/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/v4/baymax_app/app/pages/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/v4/baymax_app/app/pages/BaymaxFirmata.py" beforeDir="false" afterPath="$PROJECT_DIR$/v4/baymax_app/app/pages/BaymaxFirmata.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
