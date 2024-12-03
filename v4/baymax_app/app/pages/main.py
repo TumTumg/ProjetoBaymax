@@ -10,6 +10,10 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import speech_recognition as sr
 import mysql.connector
 from mysql.connector import Error
+import serial
+import time
+from twilio.rest import Client
+import subprocess
 
 
 
@@ -903,9 +907,13 @@ class Inicial:
                             ft.NavigationBarDestination(icon=ft.icons.CHAT, label="Chat"),
                             ft.NavigationBarDestination(icon=ft.icons.HOME, label="Home"),
                             ft.NavigationBarDestination(icon=ft.icons.INFO, label="Sobre"),
+                            ft.NavigationBarDestination(icon=ft.icons.WARNING, label="Evacuação de Segurança"),
+                            # Certifique-se que o label está correto
                         ],
                         on_change=self.handleNavigation,
-                    ),
+                    )
+
+                    ,
                     ft.Container(
                         bgcolor=ft.colors.WHITE,
                         expand=True,
@@ -956,6 +964,8 @@ class Inicial:
     def handleNavigation(self, e):
         """Navega entre as diferentes páginas do aplicativo."""
         route = e.control.destinations[e.control.selected_index].label.lower()
+        print(f"Selected route: {route}")  # Para debugar a rota selecionada
+
         if route == "chat":
             self.routeChange("/chatIAFlet")  # Navega para a página de Chat
         elif route == "home":
@@ -968,12 +978,15 @@ class Inicial:
             self.routeChange("/welcome")  # Navega para a página de Boas-Vindas
         elif route == "signup":
             self.routeChange("/signup")  # Navega para a página de Cadastro
+        elif route == "evacuação de segurança":
+            self.routeChange("/evacuacaoSeguranca")  # Corrigir o label para o que está sendo usado no NavigationBar
 
     def routeChange(self, route_event_or_str):
         """Atualiza a view de acordo com a rota."""
         print(f"Changing route to: {route_event_or_str}")  # Log da rota
         self.page.views.clear()  # Limpa as views atuais
         route = route_event_or_str.route if hasattr(route_event_or_str, 'route') else route_event_or_str
+
         views = {
             "/chatIAFlet": self.buildChatView,
             "/": self.buildHomeView,
@@ -981,10 +994,79 @@ class Inicial:
             "/login": self.buildLoginView,  # Adiciona a página de Login
             "/welcome": self.buildWelcomeView,  # Adiciona a página de Boas-Vindas
             "/signup": self.buildSignupView,  # Adiciona a página de Cadastro
+            "/evacuacaoSeguranca": self.buildEvacuacaoSegurancaView,  # Verifique se a rota está correta
         }
+
         view_function = views.get(route, self.buildErrorView)
         view_function()  # Chama a função de view correspondente
         self.page.update()  # Atualiza a página
+
+    def buildEvacuacaoSegurancaView(self):
+        """Constrói a página de Evacuação de Segurança."""
+        self.page.views.append(
+            ft.View(
+                "/evacuacaoSeguranca",
+                [
+                    self.buildAppBar(),
+                    ft.NavigationBar(
+                        bgcolor=ft.colors.RED,
+                        destinations=[
+                            ft.NavigationBarDestination(icon=ft.icons.CHAT, label="Chat"),
+                            ft.NavigationBarDestination(icon=ft.icons.HOME, label="Home"),
+                            ft.NavigationBarDestination(icon=ft.icons.INFO, label="Sobre"),
+                            ft.NavigationBarDestination(icon=ft.icons.WARNING, label="Evacuação de Segurança"),
+                            # Certifique-se que o label está correto
+                        ],
+                        on_change=self.handleNavigation,
+                    )
+
+                    ,
+                    ft.Container(
+                        bgcolor=ft.colors.WHITE,
+                        expand=True,
+                        padding=20,
+                        content=ft.ListView(
+                            controls=[
+                                ft.Container(
+                                    content=ft.Text(
+                                        "ALERTA DE TEMPERATURA E EVACUAÇÃO: Monitoramento de condições críticas.",
+                                        size=self.font_size,
+                                        color=ft.colors.BLACK,
+                                        text_align=ft.TextAlign.CENTER,
+                                        no_wrap=False  # Permite o texto expandir em múltiplas linhas
+                                    ),
+                                    bgcolor="#f0f0f0",
+                                    padding=20,
+                                    margin=ft.margin.only(bottom=20),
+                                    border_radius=10,
+                                    alignment=ft.alignment.center,
+                                    border=ft.border.all(2, ft.colors.RED),
+                                    expand=True  # Expande o contêiner com base no conteúdo do texto
+                                ),
+                                ft.Container(
+                                    content=ft.Text(
+                                        "Caso a temperatura atinja o limite de segurança, um alarme será acionado e o processo de evacuação será iniciado.",
+                                        size=self.font_size,
+                                        color=ft.colors.BLACK,
+                                        text_align=ft.TextAlign.CENTER,
+                                        no_wrap=False
+                                    ),
+                                    bgcolor="#f0f0f0",
+                                    padding=20,
+                                    margin=ft.margin.only(top=20),
+                                    border_radius=10,
+                                    alignment=ft.alignment.center,
+                                    border=ft.border.all(2, ft.colors.RED),
+                                    expand=True
+                                ),
+                            ],
+                            auto_scroll=True,
+                        ),
+                    ),
+                ],
+            )
+        )
+        self.page.update()
 
     def buildChatView(self):
         """Constrói a interface do chat com balões de fala e funcionalidade de copiar."""
@@ -1217,6 +1299,8 @@ class Inicial:
                 ft.NavigationBarDestination(icon=ft.icons.CHAT, label="Chat"),
                 ft.NavigationBarDestination(icon=ft.icons.HOME, label="Home"),
                 ft.NavigationBarDestination(icon=ft.icons.INFO, label="Sobre"),
+                ft.NavigationBarDestination(icon=ft.icons.WARNING, label="Evacuação de Segurança"),
+                # Certifique-se que o label está correto
             ],
             on_change=self.handleNavigation,
         )
@@ -1298,7 +1382,7 @@ class Inicial:
                 texto = recognizer.recognize_google(audio, language='pt-BR')
                 print(f"Você disse: {texto}")
                 self.message_input.value = texto
-                self.sendMessageFromVoice(texto)  # Chama o método de envio de mensagem
+                self.sendMessage(texto=texto)  # Envia a mensagem diretamente para sendMessage
         except sr.UnknownValueError:
             print("Não consegui entender o que você disse.")
         except sr.RequestError as e:
