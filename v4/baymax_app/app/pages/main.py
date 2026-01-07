@@ -737,7 +737,7 @@ class Inicial:
         pass
         """Configura o modelo de IA com a API do Gemini."""
         try:
-            genai.configure(api_key="AIzaSyCk-u-JNCWlX0-G5omIdhictzVNW8bEZbM")  # Substitua pela sua chave API real
+            genai.configure(api_key="")  # Substitua pela sua chave API real
         except Exception as e:
             print(f"Erro ao configurar a API do Gemini: {e}")
             return None
